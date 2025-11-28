@@ -1,0 +1,8 @@
+inventory:
+- source: DirectOwners
+  items:
+  - id: dbanerjee@microsoft.com
+  - id: mumalhot@microsoft.com
+  - id: vbaghel@microsoft.com
+  - id: anishganguli@microsoft.com
+  isProduction: false
