@@ -1,0 +1,44 @@
+
+Quick recap
+The meeting introduced team members from ISC and HSBC to discuss a GenAI project, focusing on roles and structure with ISC planning to start with three main positions while HSBC shared detailed requirements for an insurance underwriting project in Hong Kong. The team reviewed document processing needs, including handling various types of insurance forms, medical reports, and ID documents across different languages and formats, with discussions centered on information extraction capabilities and quality checks. The conversation ended with plans to create dummy samples for testing, review POC prompts and extractions, and continue discussions on Discord, with specific focus on document verification and UI mapping.
+ 
+Next steps
+
+Josh to check and share the Excel file containing document details with the Microsoft team.
+Josh to check if dummy document samples can be shared with the Microsoft team.
+Cherry to summarize document types and information requirements in a table and share with the Microsoft team.
+Microsoft ISE team to connect with other ISE team members who work with different insurance customers to gather learnings on similar use cases.
+Microsoft team to understand the minimum quality requirements for scanned documents.
+Josh to continue the discussion on POC prompts and extractions in the next meeting before moving to UI discussions.
+ 
+Summary
+ 
+GenAI Project Team Integration Meeting
+The meeting introduced team members from both ISC and HSBC for an upcoming GenAI project. ISC representatives included Deb, Manish, Vikesh, Deepti Sebastian, Mark, and Ravi, while HSBC team members included Tanveer, Sunny, Matthew, Bi Chau, Cherry, and Erol. The discussion focused on project roles and team structure, with ISC explaining they would start with three main roles (technical program manager, business program manager, and engineering/data science teams) and potentially add more resources based on project scope. The conversation ended with plans to share project findings and gather input on design from the Microsoft team, with Tammy tasked to present the list of documents for the underwriting POC.
+ 
+Insurance Underwriting Document Requirements
+The team discussed document lists for an insurance underwriting project, focusing on Hong Kong as the primary market with Singapore and Hang Seng as secondary markets. Cherry shared a comprehensive list of underwriting documents, which Josh explained covers various categories including applications, proposals, ID checks, medical reports, and financial assessments. Tanveer emphasized the need to define key information extraction requirements for each document type, noting that underwriters' requirements vary within categories. The team agreed to focus on six previously covered documents and share dummy samples with Microsoft Teams, while Cherry committed to summarizing document categories in a table for the team.
+ 
+Entity Extraction in Insurance Sector
+The team discussed leveraging past experience with entity extraction in the insurance sector, where Dablina explained their work with large language models and heuristics to identify relevant entities within documents, particularly in underwriting. Tanveer inquired about the use of custom models versus standardized LLMs, to which Dablina responded that it depends on the use case, noting they typically assess whether a custom model is necessary. Josh suggested involving the Microsoft ISE team to explore relevant experiences and challenges, while Mark emphasized starting with state-of-the-art models and identifying edge cases that might require fine-tuning, highlighting the significant investment required for creating fine-tuned models.
+ 
+Model Customization vs Industry Standards
+The team discussed the trade-offs between creating custom fine-tuned models versus using industry-standard models, with Mark highlighting that ongoing investment is required for fine-tuning. Cherry presented a detailed overview of the POC scope, covering ten documents including ID documents and three main categories: general application documents, medical documents, and financial documents. The discussion focused on high-net-worth products, where application forms require extensive personal, policyholder, and company information, including health data, insurability details, and financial information.
+ 
+AI Application Form Testing Samples
+The team discussed creating dummy samples to demonstrate the AI's ability to process and extract information from application forms. Josh explained that these samples are filled out by colleagues to simulate customer input, as they cannot use real production data. Cherry presented a detailed overview of the application form sections, including personal details, policy preferences, health declarations, and financial information. The team is particularly focusing on testing the chat box detection functionality using these dummy samples.
+ 
+Document Template Translation Requirements
+The team discussed the handling of various document templates, particularly focusing on HSBC forms and medical reports. Cherry explained that while application forms would primarily be in English or Chinese, medical reports could vary significantly in format and language depending on the medical center, requiring both translation and summarization capabilities. The team clarified that the goal was to extract and summarize key information relevant to underwriting decisions, with no fixed list of required elements, as underwriters wanted to ensure nothing important was missed.
+ 
+Medical Report Processing Requirements
+The team discussed testing document processing capabilities, particularly for medical reports, and identified the need to add specific prompts based on underwriter feedback. Cherry explained that medical reports require extracting personal details, report dates, and summaries, while graphs and charts can be displayed as-is since underwriters may not interpret them. The team also noted that medical letters need to be processed in multiple languages (English, Traditional Chinese, and Simplified Chinese) and include disease history summaries.
+ 
+AI-Driven Underwriter Document Review
+The team discussed the process of underwriter document review and summary, where Cherry explained that underwriters use a system to manage document summaries and case-level AI summaries that combine information across different documents. Mark inquired about document correlation needs, to which Cherry clarified that the system requires across-document summarization and verification, including applicant, medical, and financial information, with AI expected to provide recommendations and verify data matches. Cherry also demonstrated examples of broker reports and financial statements, explaining that AI should extract and summarize key financial information from these documents, including liability, assets, and profit trends over the past two years.
+ 
+Financial Document Verification Process
+The team discussed the purpose of financial documents and broker reports, which are used for underwriting rules and to verify the applicant's financial situation and source of funds for high-network insurance products. Cherry explained that ID documents are for verification purposes, not to check their authenticity, but to match the information with the application form. The team reviewed various ID samples from different regions, including Hong Kong, Macau, China, Taiwan, and passports, and discussed the need for the solution to automatically match and verify the information provided. Josh clarified that while partner-sourced scans typically meet quality standards, customer-submitted scans may require resubmission if the image quality is poor.
+ 
+Document Quality Check System Review
+The team discussed document quality checks for a system, with Josh explaining that the checks would apply to all documents, not just IDs, and would include verifying readability and detecting malicious manipulations. Josh noted that while there are proposed algorithms for detecting malicious intent, these need further review. The team agreed to continue their discussion on Discord, and Josh committed to sharing an Excel file with dummy data for the team to review. They also decided to move on to reviewing the POC prompts and extractions before addressing the UI, with Estra joining to help map the UX.

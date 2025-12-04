@@ -1,0 +1,26 @@
+
+Quick recap
+The team reviewed a POC for document processing using AI models, focusing on extracting information from underwriting documents and discussing challenges with signature verification and data extraction from handwritten forms. They explored various solutions for text extraction and layout recognition, including different AI models and prompting techniques for handling English and Chinese text. The team also addressed challenges with vision models for font and handwriting recognition, while discussing potential alternatives and scheduling their next meeting.
+Next steps
+
+Josh to share the Excel file containing the list of documents with Lukasz's team.
+Josh and Lukasz to schedule the next meeting for Thursday of the following week.
+Microsoft team to explore solutions for signature extraction in Azure without requiring HSBC to provide training data.
+Josh's team to test the Python layout approach suggested by Vikesh for handling text written across multiple columns/lines.
+Tanveer to get statistics from underwriters on how frequently the issue of text written across lines/columns occurs in documents.
+Esra and Tanveer to consider scheduling a separate discussion about redesigning the overall workflow for underwriting.
+Summary
+AI Document Processing POC Review
+The team discussed a POC for document processing using AI models, focusing on extracting information from underwriting documents. Josh explained they tested 6-10 document types using generic models without custom training, processing items like medical reports and application forms. Joe was tasked with presenting sample results to demonstrate the system's capabilities and challenges, particularly around signature verification where they currently use Tesseract due to its flexibility. The team also discussed the need for further testing with Hong Kong data, which cannot be sent to US servers, and the comparison between models with different context windows.
+ 
+Signature Extraction Challenges and Solutions
+The team discussed challenges with signature extraction from documents, comparing different approaches including Tesseract, Azure Document Intelligence (ADI), and GPT-4.1. Bi explained that while they initially tried converting PDFs to images for GPT extraction, ADI plus GPT performed better, though they still face difficulties with signature detection due to the lack of a dedicated signature field in ADI's output. The team decided against using their own data for custom model training, and Joe mentioned that Microsoft is developing an understanding model for document intelligence, though it's not yet available for preview.
+ 
+Handwritten Data Extraction Challenges
+The team discussed challenges with understanding and extracting data from handwritten forms, particularly when text is written across multiple columns or in freeform layouts. Josh and Tanveer shared examples of problematic data samples, while Bi suggested using GPT to separate Chinese and English characters. The group explored potential solutions, including seeking input from Microsoft Teams to better handle these complex layouts.
+ 
+Document Layout Challenges in Extraction
+The team discussed challenges with document text extraction, particularly when customers or medical staff write outside designated areas, which can lead to overlapping text and poor correlation of data. Vikesh suggested using layout information through Python libraries to improve text organization, while Tanveer noted that such cases occur in about 5-10% of documents and agreed to get more statistics from underwriters. The team decided to try adding layout information to structured text inputs to help the LLM, and Josh mentioned they would check if this approach was used in their POC. Munish also asked about testing different prompting techniques for English and Chinese text with the GPT-40 vision model.
+ 
+Vision Model Challenges and Solutions
+The team discussed challenges with vision models, particularly regarding font and handwriting recognition, with Bi noting they had conducted simple experiments but needed more testing. Josh highlighted issues with signatures and cross-line text recognition, expressing a preference to avoid AWS solutions due to legal and consent concerns, while Lukasz committed to exploring Azure-based alternatives. The team agreed to schedule their next meeting for the following Thursday, with Josh and Lukasz planning to coordinate specific timing, and Josh committed to obtaining and sharing an Excel file containing document lists from Cherry.

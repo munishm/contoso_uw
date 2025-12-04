@@ -1,0 +1,58 @@
+2025.10.23 - walkthrough session notes
+Incoming channels for product application including those documents required for underwriting
+• RM through an internal system
+• Broker through email
+• Paper-based forms and documents (in relatively lower proportion), scanned by an external
+vendor in batch to provide the scanned underwriting documents
+As-is process – 100% manual process for the underwriters to review all the underwriting documents,
+prepare the underwriting summary and the assessment with the underwriting summary as the
+rationale for the assessment.
+Existing business pain points:
+1. Takes up to a few hours for the underwriters to process each case with 30+ documents with some
+of the documents with hundred of pages.
+2. Potential risks of overlooking key information for the underwriting assessment because of the
+volume of documents involved for each case
+3. In some cases, can involve high number of turnarounds of supplementing documents
+4. Can only support a very low % of manual audit of the accuracy of the underwriting assessment
+To-be process:
+• AI to automate document processing to generate the underwriting summary and assessment
+with 100% human-in-the-loop for the final assessment considering the high protection coverage
+typically involved. This is to address the pain points 1 and 2 above.
+• The medium to longer term vision is to address pain point 4 above and then also an
+underwriting workflow that can provide instant feedback to those who submit the underwriting
+documents to reduce the no. of turnarounds of the documents.
+Pilot scope:
+• HK as the target market
+• 2 insurance products for the HNW individuals, both are investment-linked products which have
+both protection and also investment elements in the insurance products. Each with 15 – 20
+document types associated with the product applications
+• Only 6 – 10 document types will be covered in the pilot
+AI pipeline:
+1. Document classification
+2. Document image quality check
+3. Document criteria check / malicious document check
+4. Document checklist verification
+5. Document level summary per document (no fixed list of fields per document considering the
+variety of the formats even for a particular document type)
+6. ID and signature verification
+7. Overall case level summary and assessment
+8. Generation of the quality metrics (relevancy, consistency, fluency, coherence, etc) for the case
+level summary
+The current implementation has been focused on the step 5 – 7 above
+Proposed workflow in the UI/UX
+1. Document list showing list of documents classified, the image quality of those documents,
+whether those documents meeting the criteria (e.g. whether bank statement is within XX days,
+etc) or have any particular exceptions (e.g. any malicious documents with jailbreaking content
+embedded, etc), whether there are any missing documents for the particular product applications
+2. AI-generated document level summary with the corresponding preview of the original document
+for verification of the accuracy of the summary
+3. AI verification of the ID and signature across the documents where the user will provide feedback
+on the accuracy of the AI verification
+4. AI-generated case level underwriting summary, together with the quality metric of the summary
+generated and the underwriting assessment (e.g. approved or not, any loading required, any cap
+on protection sum, any exclusion of pre-existing conditions, any specific T&C per particular case,
+etc)
+5. User will assign an overall user satisfaction score at a case level based on the quality of the AI
+generated content
+6. Ideally, between versions, there can be a summary of what are the additional documents in the
+new version and what are the changes in the content in the new version of the documents

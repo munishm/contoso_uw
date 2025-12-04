@@ -1,0 +1,35 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "yzhang.markdown-all-in-one",
+  "[markdown]": {
+    "editor.defaultFormatter": "davidanson.vscode-markdownlint"
+  },
+  "markdown.mermaid.theme": "default",
+  "chat.promptFilesLocations": {
+    "../hve-core/.github/prompts": true
+  },
+  "chat.instructionsFilesLocations": {
+    ".github/instructions/**/*.instructions.md": true,
+    ".github/prompts/**/*.prompt.md": true,
+    "../hve-core/.github/instructions": true
+  },
+  "chat.modeFilesLocations": {
+    ".github/chatmodes": true,
+    "../hve-core/.github/chatmodes": true
+  },
+  "yaml.schemas": {
+    "./scripts/linting/schemas/root-community-frontmatter.schema.json": [
+      "README.md",
+      "CONTRIBUTING.md", 
+      "CODE_OF_CONDUCT.md",
+      "SECURITY.md",
+      "SUPPORT.md",
+      "ANNOUNCEMENT.md"
+    ],
+    "./scripts/linting/schemas/docs-frontmatter.schema.json": [
+      "docs/**/*.md"
+    ]
+  }
+
+
+}

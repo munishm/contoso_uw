@@ -1,0 +1,51 @@
+
+The underwriting use cases:
+
+Problem statement is that the existing manual process in underwriting typically takes 2 – 3 hours to process each use case and only sampling audit will be done on the results
+Key business benefits are both the time saving in the preparation of the recommended underwriting assessment and also the increase in consistency in the thorough check of all information in the assessment
+Existing benchmark: The existing insurance underwriting manual process has 99% accuracy where the credit underwriting has 95% accuracy. The expectation for the AI use case on underwriting should also have > 90% accuracy in the generated assessment in order to achieve the expected time saving.
+File format: The input underwriting documents are primarily in PDF format that will be available on Azure blob storage where in other similar use cases like claims there can be documents in TIFF format or image format
+Languages: The use case for insurance underwriting will be primarily for Hong Kong first and the input documents will be in 3 languages (English / Traditional / Simplified Chinese). Typically a particular case can consist of documents in different languages. In some cases (minority), there can be documents with mixed languages (e.g. English printed title and Chinese input value). The use case for credit underwriting will be for UK and Singapore and the primary languages will be in English.
+Processing: The input documents will be processed by Azure Document Intelligence for image-to-text to be stored in AI Search and then the relevant data will be extracted by GPT model to come up with the underwriting summary and recommended assessment
+Environment setup: Azure Document Intelligence, Azure Function and Power Platform frontend in Hong Kong and the GPT 4.1 model in Australia. Ideally would be the GPT 4.1 with long context window. The environment for the credit underwriting will be in their respective regions close to the market of deployment.
+PoC results:Tested 6 document types including medical reports based on dummy data which may not be representative enough of all the technical challenges because of the limited sample size. More production samples with PII data redacted will be tested later which may introduce new issues with image quality or more complicated document layout.
+>90% accuracy for English / Chinese printed text or well-written English / Chinese handwritten text
+Tested and confirmed the results with GPT 4.1 with long context window is significantly better than the GPT 4o model with only 128k context window
+The additional production samples with PII data redacted will require Data Visa but that should not take long to get the approval
+Technical challenges:Signature cropping from the documents based on the Azure Document Intelligence generic layout model is not very accurate. Delon mentioned that it requires training of custom model to achieve the accuracy required. Mark clarified that custom model can also be supported but just with longer lead time due to additional time required for the model governance process.
+Fraud agent potentially required for the detection of malicious documents with attempt to jailbreaks the LLM models or faked documents. Once detected, the agent should stop the processing of the documents.
+Improvement in accuracy of handwritten text extraction
+Implementation and monitoring required related to model governance
+Expected to be implemented in Agentic AI solution pattern with reusable components to be shared across the insurance / credit underwriting and the insurance claims use cases.
+Agreed to start with the insurance underwriting use case first and then the credit underwriting use case
+ 
+Microsoft ISE team engagement:
+
+Will have service designer to provide recommendation on UI/UX and customer experience design
+Will advise on the solution architecture and environment configuration but the actual environment subscription will be turned on by HSBC staff
+Will have TPM, data scientists, frontend developers to complete the end-to-end development together with HSBC staff
+Will immediately start the onboarding process but will likely take 3 – 4 weeks based on previously experience onboarding project with CIB
+The Microsoft ISE team will start discussing with the team on the use case and provide their input even before they complete the onboarding process
+ 
+HSBC team:
+Insurance underwriting:
+
+Business sponsor: Khalil KHABIBULLIN
+Product owner: Tanveer Ahamed (to work with underwriting business team for the detailed requirements)
+Head of D&A, Insurance: Elif Erol
+D&A project lead: Kay Li
+PM: Ariel Lapinid
+Architect: Mark Liu (group), Thomas Donald & Joe Li (Insurance)
+Data Scientist: Matthew Leung
+Data Engineering team: Richard Zhao, Bichao Chen
+Frontend Development: Justin Xu, Sunny Lao
+ 
+Credit underwriting:
+
+Product owner: Sonia Dhingra
+Data scientist: Apul Gupta
+ 
+Action items:
+
+Josh will work with Lukasz for the onboarding of the Microsoft ISE team
+Josh will arrange follow up sessions between Microsoft ISE team and the insurance underwriting project team to start advising the team on the solutioning before the onboarding completed where the Microsoft team can actually start working on the actual data
