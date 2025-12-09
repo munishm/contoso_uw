@@ -14,3 +14,5 @@ configuration:
     role: Maintain
   - member: anishganguli
     role: Maintain
+  - member: lindamthomas
+    role: Maintain  
