@@ -16,3 +16,5 @@ configuration:
     role: Maintain
   - member: lindamthomas
     role: Maintain  
+  - member: sharmaks
+    role: Maintain
