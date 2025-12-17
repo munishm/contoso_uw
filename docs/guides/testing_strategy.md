@@ -307,25 +307,6 @@ omit = [
 ]
 ```
 
-## CI/CD Integration
-
-### GitHub Actions Workflow
-
-Tests run automatically on:
-- Push to `main`, `develop`, or `feature/*` branches
-- Pull requests to `main` or `develop`
-
-See [.github/workflows/structure-validation.yml](../../.github/workflows/structure-validation.yml)
-
-### Test Stages
-
-1. **Structure Validation**: Verify directory structure compliance
-2. **Linting**: Run ruff for code style
-3. **Type Checking**: Run mypy for type safety
-4. **Unit Tests**: Fast feedback on component functionality
-5. **Integration Tests**: Validate component interactions
-6. **E2E Tests** (optional): Complete workflow validation
-
 ## Mocking External Services
 
 ### Azure Services
