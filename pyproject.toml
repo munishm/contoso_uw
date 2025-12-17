@@ -4,7 +4,19 @@ version = "0.1.0"
 description = "HSBC Insurance Underwriting Automation Platform"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "pydantic>=2.5.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "mypy>=1.7.0",
+    "import-linter>=2.0.0",
+    "ruff>=0.1.0",
+]
 
 [tool.uv.workspace]
 members = [
@@ -12,6 +24,9 @@ members = [
     "src/entity_extraction",
     "src/document_summarization"
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
 
 [build-system]
 requires = ["hatchling"]

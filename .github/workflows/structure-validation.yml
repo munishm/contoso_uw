@@ -1,0 +1,143 @@
+name: Structure Validation
+
+on:
+  push:
+    branches: [main, develop, 'feature/*']
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  validate-structure:
+    name: Validate Directory Structure
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install UV
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      
+      - name: Install dependencies
+        run: |
+          uv sync --dev
+      
+      - name: Run structure validation
+        run: |
+          python3 scripts/validate_structure.py
+      
+      - name: Check naming conventions
+        run: |
+          python3 scripts/check_naming.py
+        continue-on-error: true  # Allow pre-existing directories to have non-snake_case names
+      
+      - name: Run import-linter
+        run: |
+          uv run import-linter
+      
+      - name: Generate structure report
+        if: always()
+        run: |
+          echo "## Structure Validation Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          python3 scripts/validate_structure.py >> $GITHUB_STEP_SUMMARY || echo "Validation failed" >> $GITHUB_STEP_SUMMARY
+
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install UV
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      
+      - name: Install dependencies
+        run: |
+          uv sync --dev
+      
+      - name: Run ruff (linting)
+        run: |
+          uv run ruff check src/ test/
+        continue-on-error: true  # Don't fail until components are implemented
+      
+      - name: Run ruff (formatting)
+        run: |
+          uv run ruff format --check src/ test/
+        continue-on-error: true  # Don't fail until components are implemented
+
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install UV
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      
+      - name: Install dependencies
+        run: |
+          uv sync --dev
+      
+      - name: Run mypy
+        run: |
+          uv run mypy src/
+        continue-on-error: true  # Don't fail until components are implemented
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install UV
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      
+      - name: Install dependencies
+        run: |
+          uv sync --dev
+      
+      - name: Run pytest
+        run: |
+          uv run pytest test/ --cov=src --cov-report=term --cov-report=xml
+        continue-on-error: true  # Don't fail until tests are implemented
+      
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
+        continue-on-error: true
