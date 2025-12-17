@@ -8,7 +8,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- CI/CD workflow for automated structure validation (`.github/workflows/structure-validation.yml`)
 - Environment-specific configuration files (`.env.dev`, `.env.staging`, `.env.prod`)
 - Integration test placeholders (`test/integration/test_orchestration.py`)
 - End-to-end test placeholders (`test/e2e/test_document_processing_workflow.py`)
