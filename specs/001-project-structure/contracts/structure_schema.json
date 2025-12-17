@@ -1,0 +1,447 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/commercial-software-engineering/HSBC_IWPB_UW/schemas/monorepo-structure.json",
+  "title": "HSBC Monorepo Structure Schema",
+  "description": "JSON Schema for validating HSBC Insurance Underwriting monorepo directory structure compliance",
+  "version": "0.1.0",
+  "type": "object",
+  "required": ["workspace"],
+  "properties": {
+    "workspace": {
+      "$ref": "#/definitions/Workspace"
+    }
+  },
+  "definitions": {
+    "Workspace": {
+      "type": "object",
+      "description": "Root monorepo workspace metadata",
+      "required": ["name", "root_path", "architecture", "naming_convention", "primary_language", "version"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Repository name",
+          "example": "HSBC_IWPB_UW"
+        },
+        "root_path": {
+          "type": "string",
+          "description": "Absolute path to repository root"
+        },
+        "architecture": {
+          "type": "string",
+          "enum": ["monorepo"],
+          "description": "Repository architecture type"
+        },
+        "naming_convention": {
+          "type": "string",
+          "enum": ["snake_case"],
+          "description": "Directory naming convention (FR-008)"
+        },
+        "primary_language": {
+          "type": "string",
+          "description": "Primary programming language",
+          "example": "python"
+        },
+        "workspace_tool": {
+          "type": "string",
+          "description": "Monorepo workspace management tool",
+          "example": "poetry"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "Monorepo semantic version"
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Component"
+          }
+        },
+        "interfaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Interface"
+          }
+        },
+        "environment_configs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EnvironmentConfig"
+          }
+        }
+      }
+    },
+    "DirectoryNode": {
+      "type": "object",
+      "description": "A directory in the monorepo structure",
+      "required": ["path", "name", "type", "purpose", "is_gitignored"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Relative path from repository root",
+          "pattern": "^[a-z0-9_/]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Directory name (snake_case)",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["component", "shared", "test", "docs", "build", "config", "root", "interface"],
+          "description": "Directory classification"
+        },
+        "purpose": {
+          "type": "string",
+          "description": "Human-readable directory purpose"
+        },
+        "parent_path": {
+          "type": ["string", "null"],
+          "description": "Parent directory path, null for root"
+        },
+        "is_gitignored": {
+          "type": "boolean",
+          "description": "Whether directory should be in .gitignore"
+        },
+        "requires_readme": {
+          "type": "boolean",
+          "description": "Whether directory should have README.md",
+          "default": false
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DirectoryNode"
+          }
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FileNode"
+          }
+        }
+      }
+    },
+    "FileNode": {
+      "type": "object",
+      "description": "A file in the monorepo structure",
+      "required": ["path", "name", "type", "purpose", "parent_path", "is_gitignored"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Relative path from repository root"
+        },
+        "name": {
+          "type": "string",
+          "description": "File name with extension"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["source", "test", "config", "docs", "ignore", "secret", "build", "manifest"],
+          "description": "File classification"
+        },
+        "purpose": {
+          "type": "string",
+          "description": "File's role in the project"
+        },
+        "parent_path": {
+          "type": "string",
+          "description": "Containing directory path"
+        },
+        "is_required": {
+          "type": "boolean",
+          "description": "Whether file MUST exist per spec",
+          "default": false
+        },
+        "is_gitignored": {
+          "type": "boolean",
+          "description": "Whether file should be excluded from version control"
+        },
+        "template_available": {
+          "type": "boolean",
+          "description": "Whether template exists for this file",
+          "default": false
+        }
+      }
+    },
+    "Component": {
+      "type": "object",
+      "description": "A pluggable component (FR-005, FR-015)",
+      "required": ["path", "name", "component_name", "version", "interface_version", "has_package_manifest", "is_deployable"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^src/[a-z][a-z0-9_]*$",
+          "description": "Component path (must be under src/)"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Directory name (snake_case)"
+        },
+        "type": {
+          "type": "string",
+          "const": "component"
+        },
+        "component_name": {
+          "type": "string",
+          "description": "Human-readable component name"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "Component semantic version"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Component names this depends on"
+        },
+        "interface_version": {
+          "type": "string",
+          "description": "Interface version implemented",
+          "example": "IProcessorV1"
+        },
+        "has_package_manifest": {
+          "type": "boolean",
+          "description": "Whether has pyproject.toml or package.json (MUST be true per FR-013)",
+          "const": true
+        },
+        "is_deployable": {
+          "type": "boolean",
+          "description": "Whether component can be deployed independently"
+        },
+        "purpose": {
+          "type": "string",
+          "description": "Component functionality description"
+        },
+        "implements": {
+          "$ref": "#/definitions/Interface"
+        },
+        "tests": {
+          "$ref": "#/definitions/TestSuite"
+        }
+      }
+    },
+    "Interface": {
+      "type": "object",
+      "description": "Component interaction contract",
+      "required": ["name", "version", "file_path", "stability"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Interface name",
+          "pattern": "^I[A-Z][a-zA-Z0-9]*$",
+          "example": "IDocumentProcessor"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "Interface semantic version"
+        },
+        "file_path": {
+          "type": "string",
+          "pattern": "^src/interfaces/[a-z_]+\\.py$",
+          "description": "Path to interface definition"
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Method"
+          }
+        },
+        "schema_path": {
+          "type": ["string", "null"],
+          "description": "Path to JSON schema if applicable"
+        },
+        "stability": {
+          "type": "string",
+          "enum": ["experimental", "stable", "deprecated"],
+          "description": "Interface maturity level"
+        },
+        "deprecation_note": {
+          "type": "string",
+          "description": "Required if stability is deprecated"
+        }
+      },
+      "if": {
+        "properties": {
+          "stability": {
+            "const": "deprecated"
+          }
+        }
+      },
+      "then": {
+        "required": ["deprecation_note"]
+      }
+    },
+    "Method": {
+      "type": "object",
+      "description": "A method in an Interface",
+      "required": ["name", "signature", "returns", "purpose", "is_required"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Method name"
+        },
+        "signature": {
+          "type": "string",
+          "description": "Full method signature"
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Parameter"
+          }
+        },
+        "returns": {
+          "type": "string",
+          "description": "Return type description"
+        },
+        "purpose": {
+          "type": "string",
+          "description": "What the method does"
+        },
+        "is_required": {
+          "type": "boolean",
+          "description": "Whether implementors MUST implement"
+        }
+      }
+    },
+    "Parameter": {
+      "type": "object",
+      "description": "A method parameter",
+      "required": ["name", "type", "description"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "default": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "TestSuite": {
+      "type": "object",
+      "description": "Organized tests for a component",
+      "required": ["component_name", "coverage_target"],
+      "properties": {
+        "component_name": {
+          "type": "string",
+          "description": "Component being tested"
+        },
+        "unit_test_path": {
+          "type": ["string", "null"],
+          "pattern": "^test/unit/[a-z_]+/$",
+          "description": "Path to unit tests"
+        },
+        "integration_test_path": {
+          "type": ["string", "null"],
+          "pattern": "^test/integration/",
+          "description": "Path to integration tests"
+        },
+        "e2e_test_path": {
+          "type": ["string", "null"],
+          "pattern": "^test/e2e/",
+          "description": "Path to E2E tests"
+        },
+        "test_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of test files"
+        },
+        "coverage_target": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Target code coverage percentage"
+        }
+      },
+      "anyOf": [
+        {"required": ["unit_test_path"]},
+        {"required": ["integration_test_path"]},
+        {"required": ["e2e_test_path"]}
+      ]
+    },
+    "EnvironmentConfig": {
+      "type": "object",
+      "description": "Environment-specific configuration (FR-004)",
+      "required": ["name", "file_path", "is_committed"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "enum": ["example", "dev", "staging", "prod", "local"],
+          "description": "Environment name"
+        },
+        "file_path": {
+          "type": "string",
+          "pattern": "^\\.env\\.(example|dev|staging|prod|local)$",
+          "description": "Path to .env file"
+        },
+        "is_committed": {
+          "type": "boolean",
+          "description": "Whether file is in git (only true for .env.example)"
+        },
+        "variables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EnvVariable"
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "name": {
+            "not": {
+              "const": "example"
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "is_committed": {
+            "const": false
+          }
+        }
+      }
+    },
+    "EnvVariable": {
+      "type": "object",
+      "description": "An environment variable",
+      "required": ["key", "value_type", "is_required", "description"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "description": "Variable name (UPPER_SNAKE_CASE)"
+        },
+        "value_type": {
+          "type": "string",
+          "enum": ["string", "integer", "boolean", "url", "secret"],
+          "description": "Expected value type"
+        },
+        "is_required": {
+          "type": "boolean",
+          "description": "Whether variable MUST be set"
+        },
+        "default_value": {
+          "type": ["string", "null"],
+          "description": "Default if not set"
+        },
+        "description": {
+          "type": "string",
+          "description": "What the variable controls"
+        }
+      }
+    }
+  }
+}

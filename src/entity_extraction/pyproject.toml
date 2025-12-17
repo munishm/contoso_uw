@@ -1,0 +1,14 @@
+[project]
+name = "hsbc-entity-extraction"
+version = "0.1.0"
+description = "Entity extraction component for HSBC underwriting automation"
+requires-python = ">=3.11"
+dependencies = [
+    "azure-ai-documentintelligence>=1.0.0",
+    "azure-core>=1.29.0",
+    "pydantic>=2.5.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
