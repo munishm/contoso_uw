@@ -1,0 +1,1115 @@
+openapi: 3.1.0
+info:
+  title: Underwriting Case Management API
+  description: |
+    RESTful API for managing underwriting cases and documents.
+    Enables underwriters to create cases, upload documents for automatic processing
+    (classification, entity extraction, summarization), and retrieve analysis results.
+  version: 1.0.0
+  contact:
+    name: HSBC Underwriting Platform Team
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.underwriting.hsbc.com/v1
+    description: Production server
+  - url: https://api.underwriting-dev.hsbc.com/v1
+    description: Development server
+
+tags:
+  - name: Cases
+    description: Case management operations
+  - name: Documents
+    description: Document upload and retrieval operations
+  - name: Processing
+    description: Document processing and results
+
+paths:
+  /cases:
+    get:
+      tags:
+        - Cases
+      summary: List all cases
+      description: Retrieve a paginated list of underwriting cases. Excludes soft-deleted cases by default.
+      operationId: listCases
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: status
+          in: query
+          description: Filter by case status
+          schema:
+            $ref: '#/components/schemas/CaseStatus'
+        - name: assigned_to
+          in: query
+          description: Filter by assigned underwriter ID
+          schema:
+            type: string
+        - name: include_deleted
+          in: query
+          description: Include soft-deleted cases
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      tags:
+        - Cases
+      summary: Create a new case
+      description: Create a new underwriting case with the provided metadata.
+      operationId: createCase
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CaseCreateRequest'
+      responses:
+        '201':
+          description: Case created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseDetailResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /cases/{caseId}:
+    get:
+      tags:
+        - Cases
+      summary: Get case details
+      description: Retrieve detailed information about a specific case, including document summaries and the aggregated "summary of summaries".
+      operationId: getCase
+      parameters:
+        - $ref: '#/components/parameters/CaseIdParam'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    put:
+      tags:
+        - Cases
+      summary: Update case
+      description: Update case metadata and/or status. Status changes are validated against allowed transitions.
+      operationId: updateCase
+      parameters:
+        - $ref: '#/components/parameters/CaseIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CaseUpdateRequest'
+      responses:
+        '200':
+          description: Case updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseDetailResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Invalid status transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      tags:
+        - Cases
+      summary: Delete case (soft-delete)
+      description: Soft-delete a case. The case is marked as deleted and hidden from default queries but data is preserved.
+      operationId: deleteCase
+      parameters:
+        - $ref: '#/components/parameters/CaseIdParam'
+      responses:
+        '204':
+          description: Case deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /cases/{caseId}/restore:
+    post:
+      tags:
+        - Cases
+      summary: Restore deleted case
+      description: Restore a soft-deleted case to its previous status.
+      operationId: restoreCase
+      parameters:
+        - $ref: '#/components/parameters/CaseIdParam'
+      responses:
+        '200':
+          description: Case restored successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseDetailResponse'
+        '400':
+          description: Case is not deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /cases/{caseId}/status-history:
+    get:
+      tags:
+        - Cases
+      summary: Get case status history
+      description: Retrieve the complete status change history for a case.
+      operationId: getCaseStatusHistory
+      parameters:
+        - $ref: '#/components/parameters/CaseIdParam'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  case_id:
+                    type: string
+                  history:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/StatusHistoryEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /cases/{caseId}/documents:
+    get:
+      tags:
+        - Documents
+      summary: List documents for a case
+      description: Retrieve all documents associated with a case.
+      operationId: listCaseDocuments
+      parameters:
+        - $ref: '#/components/parameters/CaseIdParam'
+        - name: processing_status
+          in: query
+          description: Filter by processing status
+          schema:
+            $ref: '#/components/schemas/ProcessingStatus'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      tags:
+        - Documents
+      summary: Upload document to case
+      description: |
+        Upload a document to an existing case. The document is stored in Azure Blob Storage
+        and automatic processing (classification, entity extraction, summarization) is triggered.
+        Maximum file size: 50 MB. Maximum 50 documents per case.
+      operationId: uploadDocument
+      parameters:
+        - $ref: '#/components/parameters/CaseIdParam'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Document file (PDF, DOCX, DOC, PNG, JPG, JPEG, TIFF)
+                metadata:
+                  type: string
+                  description: JSON string containing additional metadata
+            encoding:
+              file:
+                contentType: application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, image/png, image/jpeg, image/tiff
+      responses:
+        '201':
+          description: Document uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentDetailResponse'
+        '400':
+          description: Invalid file format or size exceeds 50 MB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Maximum document limit (50) reached for this case
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /cases/{caseId}/documents/{documentId}:
+    get:
+      tags:
+        - Documents
+      summary: Get document details
+      description: Retrieve detailed information about a document including classification, extracted entities, and summary.
+      operationId: getDocument
+      parameters:
+        - $ref: '#/components/parameters/CaseIdParam'
+        - $ref: '#/components/parameters/DocumentIdParam'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    patch:
+      tags:
+        - Documents
+      summary: Update document metadata
+      description: Update metadata for an existing document.
+      operationId: updateDocument
+      parameters:
+        - $ref: '#/components/parameters/CaseIdParam'
+        - $ref: '#/components/parameters/DocumentIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentUpdateRequest'
+      responses:
+        '200':
+          description: Document updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentDetailResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      tags:
+        - Documents
+      summary: Delete document
+      description: Delete a document and its associated processing results.
+      operationId: deleteDocument
+      parameters:
+        - $ref: '#/components/parameters/CaseIdParam'
+        - $ref: '#/components/parameters/DocumentIdParam'
+      responses:
+        '204':
+          description: Document deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /cases/{caseId}/documents/{documentId}/download:
+    get:
+      tags:
+        - Documents
+      summary: Get document download URL
+      description: Generate a time-limited signed URL for downloading the document.
+      operationId: getDocumentDownloadUrl
+      parameters:
+        - $ref: '#/components/parameters/CaseIdParam'
+        - $ref: '#/components/parameters/DocumentIdParam'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  download_url:
+                    type: string
+                    format: uri
+                    description: Time-limited SAS URL for download
+                  expires_at:
+                    type: string
+                    format: date-time
+                    description: URL expiration timestamp
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /cases/{caseId}/documents/{documentId}/reprocess:
+    post:
+      tags:
+        - Processing
+      summary: Reprocess document
+      description: Trigger reprocessing of a document. Clears existing results and restarts the processing pipeline.
+      operationId: reprocessDocument
+      parameters:
+        - $ref: '#/components/parameters/CaseIdParam'
+        - $ref: '#/components/parameters/DocumentIdParam'
+      responses:
+        '202':
+          description: Reprocessing initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /cases/{caseId}/documents/{documentId}/entities:
+    get:
+      tags:
+        - Processing
+      summary: Get extracted entities
+      description: Retrieve all entities extracted from a document.
+      operationId: getDocumentEntities
+      parameters:
+        - $ref: '#/components/parameters/CaseIdParam'
+        - $ref: '#/components/parameters/DocumentIdParam'
+        - name: entity_type
+          in: query
+          description: Filter by entity type
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document_id:
+                    type: string
+                    format: uuid
+                  entities:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Entity'
+                  total_count:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /cases/{caseId}/documents/{documentId}/entities/{entityId}/explain:
+    get:
+      tags:
+        - Processing
+      summary: Explain entity extraction
+      description: Get detailed explanation of why an entity was extracted and classified.
+      operationId: explainEntity
+      parameters:
+        - $ref: '#/components/parameters/CaseIdParam'
+        - $ref: '#/components/parameters/DocumentIdParam'
+        - name: entityId
+          in: path
+          required: true
+          description: Entity ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityExplanation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /cases/{caseId}/documents/{documentId}/summary:
+    get:
+      tags:
+        - Processing
+      summary: Get document summary
+      description: Retrieve the generated summary for a document.
+      operationId: getDocumentSummary
+      parameters:
+        - $ref: '#/components/parameters/CaseIdParam'
+        - $ref: '#/components/parameters/DocumentIdParam'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Summary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /cases/{caseId}/documents/{documentId}/summary/explain:
+    get:
+      tags:
+        - Processing
+      summary: Explain summary generation
+      description: Get detailed explanation of how the summary was generated, including source sections.
+      operationId: explainSummary
+      parameters:
+        - $ref: '#/components/parameters/CaseIdParam'
+        - $ref: '#/components/parameters/DocumentIdParam'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummaryExplanation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  parameters:
+    CaseIdParam:
+      name: caseId
+      in: path
+      required: true
+      description: Unique case identifier (format: CASE-YYYYMM-NNNNNN)
+      schema:
+        type: string
+        pattern: '^CASE-\d{6}-\d{6}$'
+        example: CASE-202512-000001
+
+    DocumentIdParam:
+      name: documentId
+      in: path
+      required: true
+      description: Unique document identifier (UUID)
+      schema:
+        type: string
+        format: uuid
+
+    PageParam:
+      name: page
+      in: query
+      description: Page number (1-indexed)
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+
+    PageSizeParam:
+      name: page_size
+      in: query
+      description: Number of items per page
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  schemas:
+    CaseStatus:
+      type: string
+      enum:
+        - draft
+        - in-review
+        - pending-documents
+        - approved
+        - rejected
+        - closed
+        - deleted
+      description: Current status of the case
+
+    ProcessingStatus:
+      type: string
+      enum:
+        - pending
+        - classifying
+        - extracting-entities
+        - summarizing
+        - completed
+        - failed
+      description: Document processing status
+
+    DocumentType:
+      type: string
+      enum:
+        - application_form
+        - financial_statement
+        - medical_report
+        - identity_document
+        - property_assessment
+        - bank_statement
+        - tax_return
+        - insurance_policy
+        - legal_document
+        - other
+      description: Document classification type
+
+    CaseCreateRequest:
+      type: object
+      required:
+        - client_name
+        - policy_type
+        - submission_date
+      properties:
+        client_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Client name
+          example: John Smith
+        policy_type:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Type of insurance policy
+          example: Life Insurance - HNW
+        submission_date:
+          type: string
+          format: date
+          description: Date the case was submitted
+          example: "2025-12-17"
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional case metadata
+          example:
+            priority: high
+            region: APAC
+
+    CaseUpdateRequest:
+      type: object
+      properties:
+        client_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        policy_type:
+          type: string
+          minLength: 1
+          maxLength: 100
+        submission_date:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/CaseStatus'
+        assigned_to:
+          type: string
+          description: Underwriter user ID to assign the case to
+        metadata:
+          type: object
+          additionalProperties: true
+
+    CaseSummary:
+      type: object
+      properties:
+        case_id:
+          type: string
+          pattern: '^CASE-\d{6}-\d{6}$'
+          example: CASE-202512-000001
+        client_name:
+          type: string
+        policy_type:
+          type: string
+        status:
+          $ref: '#/components/schemas/CaseStatus'
+        document_count:
+          type: integer
+          description: Total number of documents
+        documents_processed:
+          type: integer
+          description: Number of documents with completed processing
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CaseDetailResponse:
+      type: object
+      properties:
+        case_id:
+          type: string
+          pattern: '^CASE-\d{6}-\d{6}$'
+        client_name:
+          type: string
+        policy_type:
+          type: string
+        submission_date:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/CaseStatus'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+          description: User ID who created the case
+        assigned_to:
+          type: string
+          nullable: true
+          description: Underwriter user ID assigned to the case
+        metadata:
+          type: object
+          additionalProperties: true
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentSummary'
+        case_summary:
+          type: string
+          nullable: true
+          description: Aggregated summary of all document summaries
+        case_summary_updated_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    CaseListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CaseSummary'
+        total:
+          type: integer
+          description: Total number of cases matching the query
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total_pages:
+          type: integer
+
+    DocumentSummary:
+      type: object
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        content_type:
+          type: string
+        size_bytes:
+          type: integer
+        processing_status:
+          $ref: '#/components/schemas/ProcessingStatus'
+        classification:
+          $ref: '#/components/schemas/DocumentType'
+        classification_confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        created_at:
+          type: string
+          format: date-time
+
+    DocumentDetailResponse:
+      type: object
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        case_id:
+          type: string
+        filename:
+          type: string
+        content_type:
+          type: string
+        size_bytes:
+          type: integer
+        processing_status:
+          $ref: '#/components/schemas/ProcessingStatus'
+        processing_error:
+          type: string
+          nullable: true
+          description: Error message if processing failed
+        classification:
+          $ref: '#/components/schemas/DocumentType'
+        classification_confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+        entities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Entity'
+        summary:
+          $ref: '#/components/schemas/Summary'
+        download_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Time-limited download URL (if requested)
+
+    DocumentListResponse:
+      type: object
+      properties:
+        case_id:
+          type: string
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentSummary'
+        total_count:
+          type: integer
+
+    DocumentUpdateRequest:
+      type: object
+      properties:
+        metadata:
+          type: object
+          additionalProperties: true
+
+    Entity:
+      type: object
+      properties:
+        entity_id:
+          type: string
+          format: uuid
+        entity_type:
+          type: string
+          description: Type of entity (e.g., person_name, date, amount, address)
+          example: person_name
+        value:
+          type: string
+          description: Extracted value
+          example: John Smith
+        normalized_value:
+          type: string
+          nullable: true
+          description: Standardized/normalized value
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Extraction confidence score
+        page_number:
+          type: integer
+          nullable: true
+          description: Page where entity was found
+        bounding_box:
+          type: object
+          nullable: true
+          properties:
+            x:
+              type: number
+            y:
+              type: number
+            width:
+              type: number
+            height:
+              type: number
+          description: Location in document (for images/PDFs)
+
+    EntityExplanation:
+      type: object
+      properties:
+        entity_id:
+          type: string
+          format: uuid
+        entity_type:
+          type: string
+        value:
+          type: string
+        confidence:
+          type: number
+          format: float
+        extraction_method:
+          type: string
+          description: Method used for extraction (e.g., NER, regex, form field)
+        source_text:
+          type: string
+          description: Surrounding text context
+        page_number:
+          type: integer
+        bounding_box:
+          type: object
+          properties:
+            x:
+              type: number
+            y:
+              type: number
+            width:
+              type: number
+            height:
+              type: number
+        reasoning:
+          type: string
+          description: Explanation of why this was classified as this entity type
+
+    Summary:
+      type: object
+      properties:
+        summary_id:
+          type: string
+          format: uuid
+        summary_text:
+          type: string
+          description: Generated summary of the document
+        key_points:
+          type: array
+          items:
+            type: string
+          description: Key findings from the document
+        source_sections:
+          type: array
+          items:
+            type: object
+            properties:
+              page_number:
+                type: integer
+              section:
+                type: string
+              relevance:
+                type: string
+          description: Source sections referenced in the summary
+        created_at:
+          type: string
+          format: date-time
+
+    SummaryExplanation:
+      type: object
+      properties:
+        summary_id:
+          type: string
+          format: uuid
+        summary_text:
+          type: string
+        contributing_sections:
+          type: array
+          items:
+            type: object
+            properties:
+              page_number:
+                type: integer
+              section_text:
+                type: string
+              contribution:
+                type: string
+                description: How this section contributed to the summary
+        model_version:
+          type: string
+          description: AI model version used
+        generation_method:
+          type: string
+          description: Summary generation approach (extractive/abstractive)
+
+    StatusHistoryEntry:
+      type: object
+      properties:
+        previous_status:
+          $ref: '#/components/schemas/CaseStatus'
+        new_status:
+          $ref: '#/components/schemas/CaseStatus'
+        changed_by:
+          type: string
+          description: User ID who made the change
+        changed_at:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          nullable: true
+          description: Optional reason for the status change
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional error details
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          default: validation_error
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+              code:
+                type: string
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Unauthorized:
+      description: Unauthorized - authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from authentication service
+
+security:
+  - bearerAuth: []
