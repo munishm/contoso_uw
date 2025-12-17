@@ -1,0 +1,18 @@
+[project]
+name = "hsbc-iwpb-uw"
+version = "0.1.0"
+description = "HSBC Insurance Underwriting Automation Platform"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv.workspace]
+members = [
+    "src/document_classification",
+    "src/entity_extraction",
+    "src/document_summarization"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

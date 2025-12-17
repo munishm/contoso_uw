@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hsbc.com/schemas/document.json",
+  "title": "Document",
+  "description": "Schema for document objects in the underwriting system",
+  "type": "object",
+  "required": ["id", "name", "content_type", "size_bytes", "created_at"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique document identifier",
+      "pattern": "^[a-zA-Z0-9_-]+$"
+    },
+    "name": {
+      "type": "string",
+      "description": "Document filename",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "content_type": {
+      "type": "string",
+      "description": "MIME type of the document",
+      "enum": [
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "text/plain",
+        "image/jpeg",
+        "image/png"
+      ]
+    },
+    "size_bytes": {
+      "type": "integer",
+      "description": "Document size in bytes",
+      "minimum": 0,
+      "maximum": 104857600
+    },
+    "created_at": {
+      "type": "string",
+      "description": "Creation timestamp in ISO 8601 format",
+      "format": "date-time"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata",
+      "properties": {
+        "source": {
+          "type": "string",
+          "description": "Document source"
+        },
+        "uploaded_by": {
+          "type": "string",
+          "format": "email"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["policy", "claim", "medical", "financial", "other"]
+        }
+      }
+    },
+    "classification": {
+      "type": "string",
+      "description": "Document type classification"
+    },
+    "confidence": {
+      "type": "number",
+      "description": "Classification confidence score",
+      "minimum": 0.0,
+      "maximum": 1.0
+    }
+  }
+}
