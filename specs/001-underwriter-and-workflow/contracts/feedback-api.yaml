@@ -1,0 +1,407 @@
+openapi: 3.0.3
+info:
+  title: Feedback API
+  description: API endpoints for submitting and retrieving user feedback on AI outputs
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000/api
+    description: Local development server
+  - url: https://api-dev.hsbc-underwriting.internal/api
+    description: Development environment
+
+paths:
+  /feedback:
+    post:
+      summary: Submit feedback
+      description: Submit user feedback on extracted fields or summaries
+      operationId: submitFeedback
+      tags:
+        - Feedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFeedbackRequest'
+      responses:
+        '201':
+          description: Feedback submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Feedback'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Target entity (field or summary) not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      summary: List feedback
+      description: Retrieve feedback for analysis (typically used by data scientists)
+      operationId: listFeedback
+      tags:
+        - Feedback
+      parameters:
+        - name: document_id
+          in: query
+          description: Filter by document ID
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: feedback_type
+          in: query
+          description: Filter by feedback type
+          required: false
+          schema:
+            type: string
+            enum: [field_correction, summary_rating]
+        - name: user_id
+          in: query
+          description: Filter by user ID
+          required: false
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          description: Filter feedback from date (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: date_to
+          in: query
+          description: Filter feedback to date (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: page
+          in: query
+          description: Page number (1-indexed)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: Items per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Successfully retrieved feedback
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackListResponse'
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /feedback/{feedback_id}:
+    get:
+      summary: Get feedback by ID
+      description: Retrieve specific feedback entry
+      operationId: getFeedbackById
+      tags:
+        - Feedback
+      parameters:
+        - name: feedback_id
+          in: path
+          required: true
+          description: Feedback UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successfully retrieved feedback
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Feedback'
+        '404':
+          description: Feedback not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /feedback/stats:
+    get:
+      summary: Get feedback statistics
+      description: Retrieve aggregated feedback metrics for model evaluation
+      operationId: getFeedbackStats
+      tags:
+        - Feedback
+      parameters:
+        - name: document_id
+          in: query
+          description: Filter by document ID
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: date_from
+          in: query
+          description: Filter from date (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: date_to
+          in: query
+          description: Filter to date (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Successfully retrieved statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackStats'
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Feedback:
+      type: object
+      required:
+        - id
+        - document_id
+        - feedback_type
+        - target_entity_id
+        - user_rating
+        - timestamp
+      properties:
+        id:
+          type: string
+          format: uuid
+        document_id:
+          type: string
+          format: uuid
+        feedback_type:
+          type: string
+          enum: [field_correction, summary_rating]
+        target_entity_id:
+          type: string
+          format: uuid
+          description: ID of ExtractedField or Summary
+        user_rating:
+          oneOf:
+            - type: string
+              enum: [correct, incorrect]
+            - type: integer
+              minimum: 1
+              maximum: 5
+        corrected_value:
+          type: string
+          nullable: true
+          description: Correct value provided by user (for field_correction)
+        comments:
+          type: string
+          nullable: true
+          maxLength: 1000
+        user_id:
+          type: string
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+
+    CreateFeedbackRequest:
+      type: object
+      required:
+        - document_id
+        - feedback_type
+        - target_entity_id
+        - user_rating
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        feedback_type:
+          type: string
+          enum: [field_correction, summary_rating]
+        target_entity_id:
+          type: string
+          format: uuid
+          description: ID of ExtractedField or Summary
+        user_rating:
+          oneOf:
+            - type: string
+              enum: [correct, incorrect]
+            - type: integer
+              minimum: 1
+              maximum: 5
+          description: 'correct/incorrect for fields, 1-5 for summaries'
+        corrected_value:
+          type: string
+          nullable: true
+          description: Required if user_rating is incorrect
+        comments:
+          type: string
+          nullable: true
+          maxLength: 1000
+
+    FeedbackListResponse:
+      type: object
+      required:
+        - items
+        - total
+        - page
+        - page_size
+        - has_next
+        - has_previous
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Feedback'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        has_next:
+          type: boolean
+        has_previous:
+          type: boolean
+
+    FeedbackStats:
+      type: object
+      required:
+        - total_feedback_count
+        - field_correction_stats
+        - summary_rating_stats
+        - period_start
+        - period_end
+      properties:
+        total_feedback_count:
+          type: integer
+          description: Total number of feedback entries
+        field_correction_stats:
+          type: object
+          properties:
+            total_count:
+              type: integer
+            correct_count:
+              type: integer
+            incorrect_count:
+              type: integer
+            accuracy_rate:
+              type: number
+              format: float
+              description: Percentage of correct fields
+            common_errors:
+              type: array
+              items:
+                type: object
+                properties:
+                  field_name:
+                    type: string
+                  error_count:
+                    type: integer
+                  example_correction:
+                    type: string
+        summary_rating_stats:
+          type: object
+          properties:
+            total_count:
+              type: integer
+            average_rating:
+              type: number
+              format: float
+              minimum: 1
+              maximum: 5
+            rating_distribution:
+              type: object
+              properties:
+                '1':
+                  type: integer
+                '2':
+                  type: integer
+                '3':
+                  type: integer
+                '4':
+                  type: integer
+                '5':
+                  type: integer
+        period_start:
+          type: string
+          format: date-time
+          description: Start of analysis period
+        period_end:
+          type: string
+          format: date-time
+          description: End of analysis period
+
+    Error:
+      type: object
+      required:
+        - error_code
+        - message
+        - timestamp
+      properties:
+        error_code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time

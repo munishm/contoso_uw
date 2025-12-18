@@ -1,0 +1,367 @@
+openapi: 3.0.3
+info:
+  title: Cases API
+  description: API endpoints for case management in underwriter workflow
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000/api
+    description: Local development server
+  - url: https://api-dev.hsbc-underwriting.internal/api
+    description: Development environment
+
+paths:
+  /cases:
+    get:
+      summary: List all cases
+      description: Retrieve a paginated list of all cases with optional filtering and sorting
+      operationId: listCases
+      tags:
+        - Cases
+      parameters:
+        - name: page
+          in: query
+          description: Page number (1-indexed)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: Number of items per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: status
+          in: query
+          description: Filter by case status (comma-separated for multiple)
+          required: false
+          schema:
+            type: string
+            enum: [pending, in_progress, completed]
+        - name: sort_by
+          in: query
+          description: Field to sort by
+          required: false
+          schema:
+            type: string
+            enum: [creation_timestamp, last_updated_timestamp, case_name]
+            default: last_updated_timestamp
+        - name: sort_direction
+          in: query
+          description: Sort direction
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Successfully retrieved cases
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseListResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      summary: Create a new case
+      description: Create a new underwriting case
+      operationId: createCase
+      tags:
+        - Cases
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCaseRequest'
+      responses:
+        '201':
+          description: Case created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Case'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /cases/{case_id}:
+    get:
+      summary: Get case by ID
+      description: Retrieve a specific case with all its documents
+      operationId: getCaseById
+      tags:
+        - Cases
+      parameters:
+        - name: case_id
+          in: path
+          required: true
+          description: Case UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successfully retrieved case
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseDetail'
+        '404':
+          description: Case not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    patch:
+      summary: Update case
+      description: Update case metadata (name, status, priority)
+      operationId: updateCase
+      tags:
+        - Cases
+      parameters:
+        - name: case_id
+          in: path
+          required: true
+          description: Case UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCaseRequest'
+      responses:
+        '200':
+          description: Case updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Case'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Case not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      summary: Delete case
+      description: Delete a case and all associated documents (soft delete)
+      operationId: deleteCase
+      tags:
+        - Cases
+      parameters:
+        - name: case_id
+          in: path
+          required: true
+          description: Case UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Case deleted successfully
+        '404':
+          description: Case not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Case:
+      type: object
+      required:
+        - id
+        - case_name
+        - creation_timestamp
+        - status
+        - document_ids
+        - last_updated_timestamp
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Case unique identifier
+        case_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: User-provided case name
+        creation_timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp
+        status:
+          type: string
+          enum: [pending, in_progress, completed]
+          description: Current case status
+        assigned_underwriter_id:
+          type: string
+          nullable: true
+          description: Assigned underwriter (null for POC)
+        document_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: List of associated document IDs
+        priority_level:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+          description: Priority (1=high, 5=low)
+        last_updated_timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp
+
+    CaseDetail:
+      allOf:
+        - $ref: '#/components/schemas/Case'
+        - type: object
+          properties:
+            documents:
+              type: array
+              items:
+                $ref: './documents-api.yaml#/components/schemas/DocumentSummary'
+              description: Full document objects
+
+    CreateCaseRequest:
+      type: object
+      required:
+        - case_name
+      properties:
+        case_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        priority_level:
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 3
+
+    UpdateCaseRequest:
+      type: object
+      properties:
+        case_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        status:
+          type: string
+          enum: [pending, in_progress, completed]
+        priority_level:
+          type: integer
+          minimum: 1
+          maximum: 5
+
+    CaseListResponse:
+      type: object
+      required:
+        - items
+        - total
+        - page
+        - page_size
+        - has_next
+        - has_previous
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Case'
+        total:
+          type: integer
+          description: Total number of cases
+        page:
+          type: integer
+          description: Current page number (1-indexed)
+        page_size:
+          type: integer
+          description: Items per page
+        has_next:
+          type: boolean
+          description: Whether there is a next page
+        has_previous:
+          type: boolean
+          description: Whether there is a previous page
+
+    Error:
+      type: object
+      required:
+        - error_code
+        - message
+        - timestamp
+      properties:
+        error_code:
+          type: string
+          description: Machine-readable error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Additional error context
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp
