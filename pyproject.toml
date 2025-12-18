@@ -36,12 +36,25 @@ all = [
     "hsbc-iwpb-uw[api,dev]",
 ]
 
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
+    "mypy>=1.7.0",
+    "ruff>=0.1.0",
+]
+
 [tool.uv.workspace]
 members = [
     "src/document_classification",
     "src/entity_extraction",
-    "src/document_summarization"
+    "src/document_summarization",
 ]
+
+[tool.uv.sources]
+# Local workspace packages
+hsbc-iwpb-uw = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
