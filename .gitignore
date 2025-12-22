@@ -75,3 +75,5 @@ dist/
 # UV
 .uv/
 uv.lock
+
+deploy.zip

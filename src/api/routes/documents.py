@@ -103,7 +103,7 @@ async def upload_document(
     content_type = file.content_type or "application/octet-stream"
     file_content = await file.read()
 
-    user_id = current_user.sub if current_user else "anonymous"
+    user_id = current_user.user_id if current_user else "anonymous"
     return await service.upload_document(
         case_id=case_id,
         filename=file.filename,
@@ -160,7 +160,7 @@ async def update_document(
 
     Only classification and custom metadata can be updated.
     """
-    user_id = current_user.sub if current_user else "anonymous"
+    user_id = current_user.user_id if current_user else "anonymous"
     return await service.update_document(case_id, document_id, request, user_id)
 
 
@@ -186,7 +186,7 @@ async def delete_document(
     This permanently removes the document from storage and database.
     Associated entities and summaries are also deleted.
     """
-    user_id = current_user.sub if current_user else "anonymous"
+    user_id = current_user.user_id if current_user else "anonymous"
     await service.delete_document(case_id, document_id, user_id)
 
 

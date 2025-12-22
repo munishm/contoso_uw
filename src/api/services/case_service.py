@@ -7,7 +7,7 @@ Handles case operations including validation, state transitions, and CRUD operat
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any, Optional
 
 from src.api.middleware.error_handler import BadRequestError, ConflictError, NotFoundError
@@ -69,14 +69,14 @@ class CaseService:
         case_id = await self.counter_repo.get_next_case_id()
         logger.info(f"Creating new case with ID: {case_id}")
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         case_data = {
             "id": case_id,
             "case_id": case_id,
             "client_name": request.client_name,
             "policy_type": request.policy_type,
             "submission_date": request.submission_date.isoformat(),
-            "status": CaseStatus.SUBMITTED.value,
+            "status": CaseStatus.DRAFT.value,
             "created_at": now.isoformat(),
             "updated_at": now.isoformat(),
             "created_by": user_id,
@@ -88,7 +88,7 @@ class CaseService:
             "status_history": [
                 {
                     "previous_status": None,
-                    "new_status": CaseStatus.SUBMITTED.value,
+                    "new_status": CaseStatus.DRAFT.value,
                     "changed_by": user_id,
                     "changed_at": now.isoformat(),
                     "reason": "Case created",
@@ -154,7 +154,7 @@ class CaseService:
         if case.get("is_deleted"):
             raise NotFoundError(f"Case {case_id} not found")
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         updates: dict[str, Any] = {"updated_at": now.isoformat()}
         status_changed = False
 

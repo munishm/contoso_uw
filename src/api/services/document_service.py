@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from src.api.config.settings import get_settings
@@ -131,7 +131,7 @@ class DocumentService:
         logger.info(f"Document uploaded to storage: {blob_path}")
 
         # Create document record
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         document_data = {
             "id": document_id,
             "document_id": document_id,
@@ -223,7 +223,7 @@ class DocumentService:
         if not document or document.get("case_id") != case_id:
             raise NotFoundError(f"Document {document_id} not found in case {case_id}")
 
-        updates: dict[str, Any] = {"updated_at": datetime.utcnow().isoformat()}
+        updates: dict[str, Any] = {"updated_at": datetime.now(timezone.utc).isoformat()}
 
         if request.classification is not None:
             updates["classification"] = request.classification.value
@@ -327,7 +327,7 @@ class DocumentService:
             document_id=document_id,
             filename=document["filename"],
             download_url=download_url,
-            expires_at=datetime.utcnow() + timedelta(hours=expiry_hours),
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=expiry_hours),
             content_type=document["content_type"],
             size_bytes=document["size_bytes"],
         )

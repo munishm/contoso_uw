@@ -11,15 +11,15 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api import __version__
-from src.api.config.settings import get_settings
-from src.api.middleware.correlation import CorrelationMiddleware
-from src.api.middleware.error_handler import setup_exception_handlers
-from src.api.middleware.logging import LoggingMiddleware
-from src.api.repositories.base import cosmos_client
-from src.api.routes import cases, documents, health, processing
-from src.api.services.queue_service import queue_service
-from src.api.services.storage_service import storage_service
+from . import __version__
+from .config.settings import get_settings
+from .middleware.correlation import CorrelationMiddleware
+from .middleware.error_handler import setup_exception_handlers
+from .middleware.logging import LoggingMiddleware
+from .repositories.base import cosmos_client
+from .routes import cases, documents, health, processing
+from .services.queue_service import queue_service
+from .services.storage_service import storage_service
 
 # Configure logging
 logging.basicConfig(
@@ -27,6 +27,16 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+# Reduce Azure SDK logging verbosity
+logging.getLogger("azure").setLevel(logging.WARNING)
+logging.getLogger("azure.core").setLevel(logging.WARNING)
+logging.getLogger("azure.identity").setLevel(logging.WARNING)
+logging.getLogger("azure.cosmos").setLevel(logging.WARNING)
+logging.getLogger("azure.storage").setLevel(logging.WARNING)
+logging.getLogger("azure.servicebus").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("aiohttp").setLevel(logging.WARNING)
 
 
 @asynccontextmanager
@@ -43,32 +53,35 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"Environment: {settings.app_env}")
     logger.info(f"Debug mode: {settings.debug}")
 
-    try:
-        # Initialize Cosmos DB client
-        if settings.cosmos_endpoint:
+    # Initialize Cosmos DB client
+    if settings.cosmos_endpoint:
+        try:
             await cosmos_client.initialize(settings)
-            logger.info("Cosmos DB client initialized")
-        else:
-            logger.warning("Cosmos DB not configured - some features may be unavailable")
+            logger.info("Cosmos DB client initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Cosmos DB: {e}", exc_info=True)
+    else:
+        logger.warning("Cosmos DB not configured - COSMOS_ENDPOINT not set")
 
-        # Initialize Blob Storage
-        if settings.blob_account_url or settings.blob_connection_string:
+    # Initialize Blob Storage
+    if settings.blob_account_url or settings.blob_connection_string:
+        try:
             await storage_service.initialize(settings)
-            logger.info("Blob Storage client initialized")
-        else:
-            logger.warning("Blob Storage not configured - file upload disabled")
+            logger.info("Blob Storage client initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Blob Storage: {e}", exc_info=True)
+    else:
+        logger.warning("Blob Storage not configured - BLOB_ACCOUNT_URL not set")
 
-        # Initialize Service Bus
-        if settings.service_bus_namespace or settings.service_bus_connection_string:
+    # Initialize Service Bus
+    if settings.service_bus_namespace or settings.service_bus_connection_string:
+        try:
             await queue_service.initialize(settings)
-            logger.info("Service Bus client initialized")
-        else:
-            logger.warning("Service Bus not configured - event publishing disabled")
-
-    except Exception as e:
-        logger.error(f"Failed to initialize services: {e}")
-        # Allow app to start even if some services fail
-        # Health endpoint will report degraded status
+            logger.info("Service Bus client initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Service Bus: {e}", exc_info=True)
+    else:
+        logger.warning("Service Bus not configured - SERVICE_BUS_NAMESPACE not set")
 
     yield
 
@@ -141,7 +154,7 @@ if __name__ == "__main__":
 
     settings = get_settings()
     uvicorn.run(
-        "src.api.main:app",
+        "main:app",
         host="0.0.0.0",
         port=8000,
         reload=settings.debug,

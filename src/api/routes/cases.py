@@ -112,7 +112,7 @@ async def create_case(
     The case will be created with status SUBMITTED and a unique case ID
     in the format CASE-YYYYMM-NNNNNN.
     """
-    user_id = current_user.sub if current_user else "anonymous"
+    user_id = current_user.user_id if current_user else "anonymous"
     return await service.create_case(request, user_id)
 
 
@@ -168,7 +168,7 @@ async def update_case(
     - APPROVED → CLOSED
     - REJECTED → CLOSED, IN_REVIEW
     """
-    user_id = current_user.sub if current_user else "anonymous"
+    user_id = current_user.user_id if current_user else "anonymous"
     return await service.update_case(case_id, request, user_id)
 
 
@@ -193,7 +193,7 @@ async def delete_case(
     The case is marked as deleted but not permanently removed.
     It can be restored using the restore endpoint.
     """
-    user_id = current_user.sub if current_user else "anonymous"
+    user_id = current_user.user_id if current_user else "anonymous"
     await service.delete_case(case_id, user_id)
 
 
@@ -218,7 +218,7 @@ async def restore_case(
 
     Returns 409 Conflict if the case is not currently deleted.
     """
-    user_id = current_user.sub if current_user else "anonymous"
+    user_id = current_user.user_id if current_user else "anonymous"
     return await service.restore_case(case_id, user_id)
 
 

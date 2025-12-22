@@ -22,6 +22,7 @@ api = [
     "python-multipart>=0.0.9",
     "httpx>=0.27.0",
     "pyjwt[crypto]>=2.8.0",
+    "aiohttp>=3.9.0",  # Required for async Azure SDK operations
 ]
 dev = [
     "pytest>=7.4.0",

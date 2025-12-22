@@ -174,7 +174,7 @@ async def reprocess_document(
     Queues the document for reprocessing. By default, all stages
     (classification, extraction, summarization) are rerun.
     """
-    user_id = current_user.sub if current_user else "anonymous"
+    user_id = current_user.user_id if current_user else "anonymous"
     return await service.reprocess_document(case_id, document_id, request, user_id)
 
 

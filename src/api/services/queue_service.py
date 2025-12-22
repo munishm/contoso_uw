@@ -35,21 +35,40 @@ class QueueService:
     async def initialize(self, settings: Optional[Settings] = None) -> None:
         """Initialize the Service Bus client."""
         if self._client is not None:
+            logger.debug("Service Bus client already initialized")
             return
 
         settings = settings or get_settings()
+        logger.info(f"Initializing Service Bus client...")
+        logger.info(f"  SERVICE_BUS_NAMESPACE: {settings.service_bus_namespace}")
+        logger.info(f"  SERVICE_BUS_QUEUE_NAME: {settings.service_bus_queue_name}")
+        logger.info(f"  SERVICE_BUS_CONNECTION_STRING present: {bool(settings.service_bus_connection_string)}")
 
-        if settings.service_bus_connection_string:
+        # Prefer Azure AD authentication (works when key-based auth is disabled by policy)
+        if settings.service_bus_namespace:
+            try:
+                logger.info("Attempting Azure AD authentication for Service Bus...")
+                self._credential = DefaultAzureCredential()
+                self._client = ServiceBusClient(
+                    fully_qualified_namespace=settings.service_bus_namespace,
+                    credential=self._credential,
+                )
+                logger.info("Using Azure AD authentication for Service Bus")
+            except Exception as aad_error:
+                logger.warning(f"Azure AD auth failed for Service Bus: {aad_error}")
+                if settings.service_bus_connection_string:
+                    # Fallback to connection string
+                    logger.info("Falling back to connection string for Service Bus")
+                    self._client = ServiceBusClient.from_connection_string(
+                        settings.service_bus_connection_string
+                    )
+                else:
+                    raise
+        elif settings.service_bus_connection_string:
             # Use connection string
+            logger.info("Using connection string for Service Bus")
             self._client = ServiceBusClient.from_connection_string(
                 settings.service_bus_connection_string
-            )
-        elif settings.service_bus_namespace:
-            # Use Azure AD authentication
-            self._credential = DefaultAzureCredential()
-            self._client = ServiceBusClient(
-                fully_qualified_namespace=settings.service_bus_namespace,
-                credential=self._credential,
             )
         else:
             raise ValueError("SERVICE_BUS_NAMESPACE or SERVICE_BUS_CONNECTION_STRING is required")
