@@ -58,8 +58,16 @@ def sample_case():
         "created_at": "2025-12-17T10:00:00",
         "updated_at": "2025-12-17T10:00:00",
         "created_by": "user@example.com",
-        "assigned_to": "underwriter@example.com",
         "metadata": {},
+        "main_document_blob_path": None,
+        "processing_status": "not_started",
+        "total_documents_expected": None,
+        "documents_processed_count": 0,
+        "processing_started_at": None,
+        "processing_completed_at": None,
+        "processing_error": None,
+        "case_summary": None,
+        "case_summary_updated_at": None,
         "is_deleted": False,
         "deleted_at": None,
         "status_history": [
@@ -84,20 +92,20 @@ class TestCaseServiceCreate:
         mock_counter_repo.get_next_case_id.return_value = "CASE-202512-000001"
         mock_case_repo.create_case.return_value = sample_case
 
-        request = CaseCreateRequest(
+        # Act
+        result = await case_service.create_case(
             client_name="John Smith",
             policy_type="Life Insurance - HNW",
             submission_date=date(2025, 12, 17),
-            assigned_to="underwriter@example.com",
+            metadata={},
+            user_id="user@example.com",
         )
-
-        # Act
-        result = await case_service.create_case(request, "user@example.com")
 
         # Assert
         assert result.case_id == "CASE-202512-000001"
         assert result.client_name == "John Smith"
         assert result.status == CaseStatus.DRAFT
+        assert result.processing_status == "not_started"
         mock_counter_repo.get_next_case_id.assert_called_once()
         mock_case_repo.create_case.assert_called_once()
 
@@ -107,15 +115,40 @@ class TestCaseServiceCreate:
         mock_counter_repo.get_next_case_id.return_value = "CASE-202512-000002"
         mock_case_repo.create_case.return_value = {**sample_case, "case_id": "CASE-202512-000002"}
 
-        request = CaseCreateRequest(
+        result = await case_service.create_case(
             client_name="Jane Doe",
             policy_type="Life Insurance - HNW",
             submission_date=date(2025, 12, 17),
+            metadata={},
+            user_id="user@example.com",
         )
 
-        result = await case_service.create_case(request, "user@example.com")
-
         assert result.case_id == "CASE-202512-000002"
+
+    @pytest.mark.asyncio
+    async def test_create_case_with_document(self, case_service, mock_case_repo, mock_counter_repo, sample_case):
+        """Test case creation with main document upload."""
+        mock_counter_repo.get_next_case_id.return_value = "CASE-202512-000001"
+        case_with_doc = {**sample_case, "main_document_blob_path": "CASE-202512-000001/main/test.pdf"}
+        mock_case_repo.create_case.return_value = case_with_doc
+
+        # Create a mock storage service
+        mock_storage = AsyncMock()
+        case_service.storage_service = mock_storage
+
+        result = await case_service.create_case(
+            client_name="John Smith",
+            policy_type="Life Insurance - HNW",
+            submission_date=date(2025, 12, 17),
+            metadata={},
+            user_id="user@example.com",
+            main_document_content=b"PDF content",
+            main_document_filename="test.pdf",
+            main_document_content_type="application/pdf",
+        )
+
+        assert result.main_document_blob_path == "CASE-202512-000001/main/test.pdf"
+        mock_storage.upload_blob.assert_called_once()
 
 
 class TestCaseServiceGet:
@@ -286,3 +319,70 @@ class TestCaseServiceStatusTransition:
         )
 
         assert result.status == CaseStatus.IN_REVIEW
+
+
+class TestCaseServiceProcessingTracking:
+    """Tests for processing status tracking."""
+
+    @pytest.mark.asyncio
+    async def test_update_processing_status(self, case_service, mock_case_repo, sample_case):
+        """Test updating processing status."""
+        mock_case_repo.get_case.return_value = sample_case
+        mock_case_repo.update_case.return_value = None
+
+        await case_service.update_processing_status(
+            "CASE-202512-000001",
+            "extracting_documents",
+            total_documents_expected=5,
+        )
+
+        mock_case_repo.update_case.assert_called_once()
+        call_args = mock_case_repo.update_case.call_args
+        updates = call_args[0][1]
+        assert updates["processing_status"] == "extracting_documents"
+        assert updates["total_documents_expected"] == 5
+        assert "processing_started_at" in updates
+
+    @pytest.mark.asyncio
+    async def test_update_processing_status_not_found(self, case_service, mock_case_repo):
+        """Test updating processing status for non-existent case."""
+        mock_case_repo.get_case.return_value = None
+
+        with pytest.raises(NotFoundError):
+            await case_service.update_processing_status(
+                "CASE-NONEXISTENT",
+                "processing_documents",
+            )
+
+    @pytest.mark.asyncio
+    async def test_increment_documents_processed(self, case_service, mock_case_repo, sample_case):
+        """Test incrementing documents processed count."""
+        mock_case_repo.get_case.return_value = sample_case
+        mock_case_repo.update_case.return_value = None
+
+        count = await case_service.increment_documents_processed("CASE-202512-000001")
+
+        assert count == 1
+        mock_case_repo.update_case.assert_called_once()
+        call_args = mock_case_repo.update_case.call_args
+        updates = call_args[0][1]
+        assert updates["documents_processed_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_set_case_summary(self, case_service, mock_case_repo, sample_case):
+        """Test setting case summary."""
+        mock_case_repo.get_case.return_value = sample_case
+        mock_case_repo.update_case.return_value = None
+
+        await case_service.set_case_summary(
+            "CASE-202512-000001",
+            "This is a summary of all documents.",
+        )
+
+        mock_case_repo.update_case.assert_called_once()
+        call_args = mock_case_repo.update_case.call_args
+        updates = call_args[0][1]
+        assert updates["case_summary"] == "This is a summary of all documents."
+        assert updates["processing_status"] == "completed"
+        assert "case_summary_updated_at" in updates
+        assert "processing_completed_at" in updates

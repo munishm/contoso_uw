@@ -1,7 +1,7 @@
 """
 FastAPI dependency injection module.
 
-Provides dependencies for database clients, services, and authentication.
+Provides dependencies for database clients and services.
 """
 
 from typing import Annotated
@@ -9,7 +9,6 @@ from typing import Annotated
 from fastapi import Depends
 
 from src.api.config.settings import Settings, get_settings
-from src.api.middleware.auth import UserClaims, get_current_user, get_optional_user
 from src.api.middleware.correlation import get_correlation_id
 from src.api.repositories.case_repository import CaseRepository
 from src.api.repositories.counter_repository import CounterRepository
@@ -22,8 +21,6 @@ from src.api.services.storage_service import StorageService, storage_service
 
 # Type aliases for cleaner dependency injection
 SettingsDep = Annotated[Settings, Depends(get_settings)]
-CurrentUser = Annotated[UserClaims, Depends(get_current_user)]
-OptionalUser = Annotated[UserClaims | None, Depends(get_optional_user)]
 CorrelationId = Annotated[str, Depends(get_correlation_id)]
 
 

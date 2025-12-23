@@ -22,8 +22,10 @@ from .services.queue_service import queue_service
 from .services.storage_service import storage_service
 
 # Configure logging
+settings = get_settings()
+log_level = logging.DEBUG if settings.debug or settings.app_env == "development" else logging.INFO
 logging.basicConfig(
-    level=logging.INFO,
+    level=log_level,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)

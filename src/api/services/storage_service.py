@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from typing import BinaryIO, Optional
 
 from azure.identity.aio import DefaultAzureCredential
-from azure.storage.blob import BlobSasPermissions, generate_blob_sas
+from azure.storage.blob import BlobSasPermissions, ContentSettings, generate_blob_sas
 from azure.storage.blob.aio import BlobServiceClient, ContainerClient
 
 from src.api.config.settings import Settings, get_settings
@@ -127,6 +127,34 @@ class StorageService:
         safe_filename = filename.replace("/", "_").replace("\\", "_")
         return f"cases/{case_id}/documents/{document_id}/{safe_filename}"
 
+    async def upload_blob(
+        self,
+        blob_path: str,
+        content: bytes,
+        content_type: str = "application/octet-stream",
+    ) -> str:
+        """
+        Upload raw bytes to a blob path.
+
+        Args:
+            blob_path: The full path for the blob (e.g., "case_id/main/filename.pdf")
+            content: File content as bytes
+            content_type: MIME type of the file
+
+        Returns:
+            The blob path where the content was uploaded
+        """
+        blob_client = self.container.get_blob_client(blob_path)
+
+        await blob_client.upload_blob(
+            content,
+            content_settings=ContentSettings(content_type=content_type),
+            overwrite=True,
+        )
+
+        logger.info(f"Uploaded blob to: {blob_path} ({len(content)} bytes)")
+        return blob_path
+
     async def upload_document(
         self,
         case_id: str,
@@ -165,7 +193,7 @@ class StorageService:
 
         await blob_client.upload_blob(
             content_bytes,
-            content_settings={"content_type": content_type},
+            content_settings=ContentSettings(content_type=content_type),
             overwrite=True,
         )
 

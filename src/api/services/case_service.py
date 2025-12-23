@@ -12,7 +12,6 @@ from typing import Any, Optional
 
 from src.api.middleware.error_handler import BadRequestError, ConflictError, NotFoundError
 from src.api.models.case import (
-    CaseCreateRequest,
     CaseDetailResponse,
     CaseListResponse,
     CaseSummaryResponse,
@@ -25,6 +24,7 @@ from src.api.models.enums import CaseStatus, validate_status_transition
 from src.api.repositories.case_repository import CaseRepository
 from src.api.repositories.counter_repository import CounterRepository
 from src.api.repositories.document_repository import DocumentRepository
+from src.api.services.storage_service import StorageService
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,7 @@ class CaseService:
         case_repository: CaseRepository,
         document_repository: DocumentRepository,
         counter_repository: CounterRepository,
+        storage_service: Optional[StorageService] = None,
     ) -> None:
         """
         Initialize case service with repositories.
@@ -45,22 +46,36 @@ class CaseService:
             case_repository: Repository for case data access
             document_repository: Repository for document data access
             counter_repository: Repository for ID generation
+            storage_service: Service for blob storage operations
         """
         self.case_repo = case_repository
         self.document_repo = document_repository
         self.counter_repo = counter_repository
+        self.storage_service = storage_service
 
     async def create_case(
         self,
-        request: CaseCreateRequest,
+        client_name: str,
+        policy_type: str,
+        submission_date: date,
+        metadata: dict[str, Any],
         user_id: str,
+        main_document_content: Optional[bytes] = None,
+        main_document_filename: Optional[str] = None,
+        main_document_content_type: Optional[str] = None,
     ) -> CaseDetailResponse:
         """
-        Create a new case.
+        Create a new case with optional main document upload.
 
         Args:
-            request: Case creation request
+            client_name: Name of the client
+            policy_type: Type of insurance policy
+            submission_date: Date the case was submitted
+            metadata: Additional case metadata
             user_id: ID of the user creating the case
+            main_document_content: Optional file content of the main document
+            main_document_filename: Optional filename of the main document
+            main_document_content_type: Optional MIME type of the main document
 
         Returns:
             Created case details
@@ -69,19 +84,40 @@ class CaseService:
         case_id = await self.counter_repo.get_next_case_id()
         logger.info(f"Creating new case with ID: {case_id}")
 
+        # Upload main document to blob storage if provided
+        main_document_blob_path: Optional[str] = None
+        if main_document_content and main_document_filename and self.storage_service:
+            blob_path = f"{case_id}/main/{main_document_filename}"
+            await self.storage_service.upload_blob(
+                blob_path=blob_path,
+                content=main_document_content,
+                content_type=main_document_content_type or "application/octet-stream",
+            )
+            main_document_blob_path = blob_path
+            logger.info(f"Main document uploaded to {blob_path}")
+
         now = datetime.now(timezone.utc)
         case_data = {
             "id": case_id,
             "case_id": case_id,
-            "client_name": request.client_name,
-            "policy_type": request.policy_type,
-            "submission_date": request.submission_date.isoformat(),
+            "client_name": client_name,
+            "policy_type": policy_type,
+            "submission_date": submission_date.isoformat(),
             "status": CaseStatus.DRAFT.value,
             "created_at": now.isoformat(),
             "updated_at": now.isoformat(),
             "created_by": user_id,
-            "assigned_to": request.assigned_to,
-            "metadata": request.metadata,
+            "metadata": metadata,
+            "main_document_blob_path": main_document_blob_path,
+            # Processing tracking fields
+            "processing_status": "not_started",
+            "total_documents_expected": None,
+            "documents_processed_count": 0,
+            "processing_started_at": None,
+            "processing_completed_at": None,
+            "processing_error": None,
+            "case_summary": None,
+            "case_summary_updated_at": None,
             "is_deleted": False,
             "deleted_at": None,
             "deleted_by": None,
@@ -167,9 +203,6 @@ class CaseService:
 
         if request.submission_date is not None:
             updates["submission_date"] = request.submission_date.isoformat()
-
-        if request.assigned_to is not None:
-            updates["assigned_to"] = request.assigned_to
 
         if request.metadata is not None:
             updates["metadata"] = request.metadata
@@ -261,7 +294,6 @@ class CaseService:
         page_size: int = 20,
         status: Optional[CaseStatus] = None,
         client_name_search: Optional[str] = None,
-        assigned_to: Optional[str] = None,
         include_deleted: bool = False,
     ) -> CaseListResponse:
         """
@@ -272,7 +304,6 @@ class CaseService:
             page_size: Number of items per page
             status: Filter by status
             client_name_search: Search in client name
-            assigned_to: Filter by assigned underwriter
             include_deleted: Include soft-deleted cases
 
         Returns:
@@ -290,9 +321,6 @@ class CaseService:
 
         if status:
             filters["status"] = status.value
-
-        if assigned_to:
-            filters["assigned_to"] = assigned_to
 
         # Get cases
         offset = (page - 1) * page_size
@@ -370,6 +398,98 @@ class CaseService:
 
         return StatusHistoryResponse(case_id=case_id, history=history)
 
+    async def update_processing_status(
+        self,
+        case_id: str,
+        processing_status: str,
+        total_documents_expected: Optional[int] = None,
+        processing_error: Optional[str] = None,
+    ) -> None:
+        """
+        Update the processing status of a case.
+
+        Args:
+            case_id: Case identifier
+            processing_status: New processing status
+            total_documents_expected: Total documents expected (set during extraction)
+            processing_error: Error message if processing failed
+        """
+        case = await self.case_repo.get_case(case_id)
+        if not case:
+            raise NotFoundError(f"Case {case_id} not found")
+
+        now = datetime.now(timezone.utc)
+        updates: dict[str, Any] = {
+            "processing_status": processing_status,
+            "updated_at": now.isoformat(),
+        }
+
+        if processing_status == "extracting_documents":
+            updates["processing_started_at"] = now.isoformat()
+        elif processing_status in ("completed", "failed"):
+            updates["processing_completed_at"] = now.isoformat()
+
+        if total_documents_expected is not None:
+            updates["total_documents_expected"] = total_documents_expected
+
+        if processing_error:
+            updates["processing_error"] = processing_error
+
+        await self.case_repo.update_case(case_id, updates)
+        logger.info(f"Case {case_id} processing status updated to {processing_status}")
+
+    async def increment_documents_processed(self, case_id: str) -> int:
+        """
+        Increment the documents processed count and check if all documents are done.
+
+        Args:
+            case_id: Case identifier
+
+        Returns:
+            Updated documents_processed_count
+        """
+        case = await self.case_repo.get_case(case_id)
+        if not case:
+            raise NotFoundError(f"Case {case_id} not found")
+
+        new_count = case.get("documents_processed_count", 0) + 1
+        await self.case_repo.update_case(
+            case_id,
+            {
+                "documents_processed_count": new_count,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        logger.info(f"Case {case_id} documents processed: {new_count}")
+        return new_count
+
+    async def set_case_summary(
+        self, case_id: str, summary: str
+    ) -> None:
+        """
+        Set the case summary after all documents are processed.
+
+        Args:
+            case_id: Case identifier
+            summary: Generated case summary
+        """
+        case = await self.case_repo.get_case(case_id)
+        if not case:
+            raise NotFoundError(f"Case {case_id} not found")
+
+        now = datetime.now(timezone.utc)
+        await self.case_repo.update_case(
+            case_id,
+            {
+                "case_summary": summary,
+                "case_summary_updated_at": now.isoformat(),
+                "processing_status": "completed",
+                "processing_completed_at": now.isoformat(),
+                "updated_at": now.isoformat(),
+            },
+        )
+        logger.info(f"Case {case_id} summary set and processing completed")
+
     async def _get_document_counts(
         self, case_ids: list[str]
     ) -> dict[str, dict[str, int]]:
@@ -401,6 +521,10 @@ class CaseService:
                         size_bytes=doc["size_bytes"],
                         processing_status=doc.get("processing_status", "pending"),
                         classification=doc.get("classification"),
+                        source=doc.get("source"),
+                        parent_document_id=doc.get("parent_document_id"),
+                        page_range=doc.get("page_range"),
+                        summary=doc.get("summary"),
                         created_at=datetime.fromisoformat(doc["created_at"]),
                     )
                 )
@@ -414,8 +538,23 @@ class CaseService:
             created_at=datetime.fromisoformat(case["created_at"]),
             updated_at=datetime.fromisoformat(case["updated_at"]),
             created_by=case["created_by"],
-            assigned_to=case.get("assigned_to"),
             metadata=case.get("metadata", {}),
+            main_document_blob_path=case.get("main_document_blob_path"),
+            # Processing tracking fields
+            processing_status=case.get("processing_status", "not_started"),
+            total_documents_expected=case.get("total_documents_expected"),
+            documents_processed_count=case.get("documents_processed_count", 0),
+            processing_started_at=(
+                datetime.fromisoformat(case["processing_started_at"])
+                if case.get("processing_started_at")
+                else None
+            ),
+            processing_completed_at=(
+                datetime.fromisoformat(case["processing_completed_at"])
+                if case.get("processing_completed_at")
+                else None
+            ),
+            processing_error=case.get("processing_error"),
             documents=doc_summaries,
             case_summary=case.get("case_summary"),
             case_summary_updated_at=(

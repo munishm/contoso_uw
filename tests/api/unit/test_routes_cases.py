@@ -40,8 +40,16 @@ def sample_case_response():
         "created_at": "2025-12-17T10:00:00",
         "updated_at": "2025-12-17T10:00:00",
         "created_by": "user@example.com",
-        "assigned_to": "underwriter@example.com",
+        "main_document_blob_path": None,
+        "processing_status": "not_started",
+        "total_documents_expected": None,
+        "documents_processed_count": 0,
+        "processing_started_at": None,
+        "processing_completed_at": None,
+        "processing_error": None,
         "documents": [],
+        "case_summary": None,
+        "case_summary_updated_at": None,
         "status_history": [],
         "metadata": {},
     }
@@ -93,20 +101,40 @@ class TestCasesEndpoints:
 
     def test_create_case_validation(self, client):
         """Test case creation validation."""
-        # Test missing required fields
-        response = client.post("/api/v1/cases", json={})
+        # Test missing required fields (now multipart form)
+        response = client.post("/api/v1/cases", data={})
         assert response.status_code == 422
 
-        # Test with minimal valid data
+        # Test with minimal valid data (multipart form)
         response = client.post(
             "/api/v1/cases",
-            json={
+            data={
                 "client_name": "John Smith",
                 "policy_type": "Life Insurance",
                 "submission_date": "2025-12-17",
             },
         )
         # Will be 500 if DB not connected, 201 if successful
+        assert response.status_code in [201, 500]
+
+    def test_create_case_with_document(self, client):
+        """Test case creation with document upload."""
+        import io
+
+        # Create a simple PDF-like file
+        pdf_content = b"%PDF-1.4 fake pdf content"
+        pdf_file = io.BytesIO(pdf_content)
+
+        response = client.post(
+            "/api/v1/cases",
+            data={
+                "client_name": "John Smith",
+                "policy_type": "Life Insurance",
+                "submission_date": "2025-12-17",
+            },
+            files={"main_document": ("test.pdf", pdf_file, "application/pdf")},
+        )
+        # Will be 500 if DB/storage not connected, 201 if successful
         assert response.status_code in [201, 500]
 
     def test_get_case_not_found(self, client):

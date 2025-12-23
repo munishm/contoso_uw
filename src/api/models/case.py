@@ -11,7 +11,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.api.models.enums import CaseStatus
+from src.api.models.enums import CaseProcessingStatus, CaseStatus
 
 
 class CaseCreateRequest(BaseModel):
@@ -35,11 +35,6 @@ class CaseCreateRequest(BaseModel):
         ...,
         description="Date the case was submitted",
         examples=["2025-12-17"],
-    )
-    assigned_to: Optional[str] = Field(
-        default=None,
-        description="Email of the assigned underwriter",
-        examples=["underwriter@hsbc.com"],
     )
     metadata: dict[str, Any] = Field(
         default_factory=dict,
@@ -69,10 +64,6 @@ class CaseUpdateRequest(BaseModel):
     status: Optional[CaseStatus] = Field(
         default=None,
         description="New case status (must follow valid transition rules)",
-    )
-    assigned_to: Optional[str] = Field(
-        default=None,
-        description="Updated assigned underwriter",
     )
     metadata: Optional[dict[str, Any]] = Field(
         default=None,
@@ -104,6 +95,16 @@ class DocumentSummaryInCase(BaseModel):
     size_bytes: int = Field(..., description="File size in bytes")
     processing_status: str = Field(..., description="Processing status")
     classification: Optional[str] = Field(default=None, description="Document type")
+    source: Optional[str] = Field(
+        default=None, description="Document source (main_upload, extracted, manual_upload)"
+    )
+    parent_document_id: Optional[str] = Field(
+        default=None, description="Parent document ID if extracted from main document"
+    )
+    page_range: Optional[str] = Field(
+        default=None, description="Page range in parent document (e.g., '1-5')"
+    )
+    summary: Optional[str] = Field(default=None, description="Document summary")
     created_at: datetime = Field(..., description="Upload timestamp")
 
 
@@ -118,8 +119,30 @@ class CaseDetailResponse(BaseModel):
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
     created_by: str = Field(..., description="User who created the case")
-    assigned_to: Optional[str] = Field(default=None, description="Assigned underwriter")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Case metadata")
+    main_document_blob_path: Optional[str] = Field(
+        default=None, description="Blob storage path of the uploaded main document"
+    )
+    # Processing tracking fields
+    processing_status: Optional[str] = Field(
+        default="not_started",
+        description="Overall processing status (not_started, extracting_documents, processing_documents, generating_case_summary, completed, failed)",
+    )
+    total_documents_expected: Optional[int] = Field(
+        default=None, description="Total documents expected after extraction"
+    )
+    documents_processed_count: int = Field(
+        default=0, description="Number of documents that have been processed"
+    )
+    processing_started_at: Optional[datetime] = Field(
+        default=None, description="When processing started"
+    )
+    processing_completed_at: Optional[datetime] = Field(
+        default=None, description="When processing completed"
+    )
+    processing_error: Optional[str] = Field(
+        default=None, description="Error message if processing failed"
+    )
     documents: list[DocumentSummaryInCase] = Field(
         default_factory=list, description="Documents attached to this case"
     )

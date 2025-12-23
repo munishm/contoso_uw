@@ -196,10 +196,6 @@ class CaseRepository(BaseRepository[dict[str, Any]]):
                 conditions.append("c.status = @status")
                 parameters.append({"name": "@status", "value": filters["status"]})
 
-            if "assigned_to" in filters:
-                conditions.append("c.assigned_to = @assigned_to")
-                parameters.append({"name": "@assigned_to", "value": filters["assigned_to"]})
-
         if client_name_search:
             conditions.append("CONTAINS(LOWER(c.client_name), LOWER(@client_name_search))")
             parameters.append({"name": "@client_name_search", "value": client_name_search})
