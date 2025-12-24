@@ -64,7 +64,7 @@ paths:
         - Cases
       summary: Create a new case
       description: |
-        Create a new underwriting case with optional main document upload.
+        Create a new underwriting case with a required main document upload.
         The main document will be stored in blob storage. The documents array
         will remain empty until background processing extracts individual
         documents from the main document.
@@ -79,6 +79,7 @@ paths:
                 - client_name
                 - policy_type
                 - submission_date
+                - main_document
               properties:
                 client_name:
                   type: string
@@ -104,7 +105,7 @@ paths:
                 main_document:
                   type: string
                   format: binary
-                  description: Main document file (PDF, DOCX, DOC, PNG, JPG, JPEG, TIFF)
+                  description: Main document file (PDF, DOCX, DOC, PNG, JPG, JPEG, TIFF) - Required
             encoding:
               main_document:
                 contentType: application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, image/png, image/jpeg, image/tiff
@@ -151,16 +152,42 @@ paths:
       tags:
         - Cases
       summary: Update case
-      description: Update case metadata and/or status. Status changes are validated against allowed transitions.
+      description: Update case metadata and/or status with optional document upload. Status changes are validated against allowed transitions.
       operationId: updateCase
       parameters:
         - $ref: '#/components/parameters/CaseIdParam'
       requestBody:
-        required: true
+        required: false
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: '#/components/schemas/CaseUpdateRequest'
+              type: object
+              properties:
+                client_name:
+                  type: string
+                  maxLength: 255
+                  description: Updated client name
+                policy_type:
+                  type: string
+                  maxLength: 100
+                  description: Updated policy type
+                submission_date:
+                  type: string
+                  format: date
+                  description: Updated submission date
+                status:
+                  type: string
+                  description: New case status (must follow valid transition rules)
+                metadata:
+                  type: string
+                  description: Updated metadata as JSON string
+                new_document:
+                  type: string
+                  format: binary
+                  description: New document to add to the case
+            encoding:
+              new_document:
+                contentType: application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, image/png, image/jpeg, image/tiff
       responses:
         '200':
           description: Case updated successfully
@@ -170,8 +197,6 @@ paths:
                 $ref: '#/components/schemas/CaseDetailResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -196,8 +221,6 @@ paths:
       responses:
         '204':
           description: Case deleted successfully
-        '401':
-          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -290,9 +313,10 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  # Note: Document upload is handled during case creation via main_document field.
-  # Documents array is populated by background processing that extracts individual
-  # documents from the main document and stores them in blob storage under case_id folder.
+  # Note: Document upload is handled during case creation (POST /cases - required) or
+  # case update (PUT /cases/{caseId} - optional). Documents array is populated by 
+  # background processing that extracts individual documents from the main document 
+  # and stores them in blob storage under case_id folder.
 
   /cases/{caseId}/documents/{documentId}:
     get:

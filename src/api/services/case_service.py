@@ -167,6 +167,9 @@ class CaseService:
         case_id: str,
         request: CaseUpdateRequest,
         user_id: str,
+        new_document_content: Optional[bytes] = None,
+        new_document_filename: Optional[str] = None,
+        new_document_content_type: Optional[str] = None,
     ) -> CaseDetailResponse:
         """
         Update an existing case.
@@ -175,6 +178,9 @@ class CaseService:
             case_id: Case identifier
             request: Update request
             user_id: User making the update
+            new_document_content: Optional new document file content
+            new_document_filename: Optional new document filename
+            new_document_content_type: Optional new document MIME type
 
         Returns:
             Updated case details
@@ -233,11 +239,139 @@ class CaseService:
                 )
                 updates["status_history"] = history
 
+        # Upload new document if provided
+        if new_document_content and new_document_filename and self.storage_service:
+            await self._add_document_to_case(
+                case_id=case_id,
+                document_content=new_document_content,
+                document_filename=new_document_filename,
+                document_content_type=new_document_content_type or "application/octet-stream",
+            )
+
         updated = await self.case_repo.update_case(case_id, updates)
         logger.info(f"Case {case_id} updated, status_changed={status_changed}")
 
         documents = await self.document_repo.list_documents_for_case(case_id)
         return self._to_detail_response(updated, documents)
+
+    async def _add_document_to_case(
+        self,
+        case_id: str,
+        document_content: bytes,
+        document_filename: str,
+        document_content_type: str,
+        document_type: Optional[str] = None,
+        document_metadata: Optional[dict[str, Any]] = None,
+        source: str = "manual_upload",
+    ) -> str:
+        """
+        Internal helper to add a document to a case.
+
+        Args:
+            case_id: Case identifier
+            document_content: File content
+            document_filename: Original filename
+            document_content_type: MIME type
+            document_type: Optional document classification
+            document_metadata: Optional document metadata
+            source: Document source (main_upload, extracted, manual_upload)
+
+        Returns:
+            Document ID of the created document
+        """
+        import uuid
+
+        now = datetime.now(timezone.utc)
+        document_id = str(uuid.uuid4())
+
+        # Upload to blob storage
+        blob_path = f"{case_id}/documents/{document_id}/{document_filename}"
+        if self.storage_service:
+            await self.storage_service.upload_blob(
+                blob_path=blob_path,
+                content=document_content,
+                content_type=document_content_type,
+            )
+            logger.info(f"Document uploaded to {blob_path}")
+
+        # Create document record in database
+        document_data = {
+            "id": document_id,
+            "document_id": document_id,
+            "case_id": case_id,
+            "filename": document_filename,
+            "content_type": document_content_type,
+            "size_bytes": len(document_content),
+            "blob_path": blob_path,
+            "processing_status": "pending",
+            "classification": document_type,
+            "source": source,
+            "parent_document_id": None,
+            "page_range": None,
+            "summary": None,
+            "metadata": document_metadata or {},
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+        }
+
+        await self.document_repo.create_document(document_data)
+        logger.info(f"Document {document_id} created for case {case_id}")
+
+        return document_id
+
+    async def add_document_to_case(
+        self,
+        case_id: str,
+        document_content: bytes,
+        document_filename: str,
+        document_content_type: str,
+        document_type: Optional[str] = None,
+        document_metadata: Optional[dict[str, Any]] = None,
+    ) -> CaseDetailResponse:
+        """
+        Add a new document to an existing case.
+
+        Args:
+            case_id: Case identifier
+            document_content: File content
+            document_filename: Original filename
+            document_content_type: MIME type
+            document_type: Optional document classification
+            document_metadata: Optional document metadata
+
+        Returns:
+            Updated case details
+
+        Raises:
+            NotFoundError: If case not found
+        """
+        case = await self.case_repo.get_case(case_id)
+        if not case:
+            raise NotFoundError(f"Case {case_id} not found")
+
+        if case.get("is_deleted"):
+            raise NotFoundError(f"Case {case_id} not found")
+
+        # Add the document
+        document_id = await self._add_document_to_case(
+            case_id=case_id,
+            document_content=document_content,
+            document_filename=document_filename,
+            document_content_type=document_content_type,
+            document_type=document_type,
+            document_metadata=document_metadata,
+            source="manual_upload",
+        )
+
+        # Update case updated_at timestamp
+        now = datetime.now(timezone.utc)
+        await self.case_repo.update_case(case_id, {"updated_at": now.isoformat()})
+
+        logger.info(f"Document {document_id} added to case {case_id}")
+
+        # Return updated case
+        documents = await self.document_repo.list_documents_for_case(case_id)
+        return self._to_detail_response(case, documents)
 
     async def delete_case(self, case_id: str, user_id: str) -> None:
         """
