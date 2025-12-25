@@ -75,3 +75,6 @@ dist/
 # UV
 .uv/
 uv.lock
+
+**/document_classification/**/data/
+**/document_classification/**/output/
