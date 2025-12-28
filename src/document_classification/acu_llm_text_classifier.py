@@ -1,6 +1,5 @@
 """ACU + LLM Text classifier implementation."""
 
-import base64
 import json
 import logging
 import requests
