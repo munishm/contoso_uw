@@ -4,14 +4,18 @@ import base64
 import json
 import logging
 import requests
+import time
 from pathlib import Path
 from typing import Dict, Any, List
 from datetime import datetime
 
+from PIL import Image
 from .utils.config import Config
 from .utils.auth import get_azure_credential
 from pdf2image import convert_from_path
 
+# Configure PIL to handle large images safely
+Image.MAX_IMAGE_PIXELS = None  # Remove the limit for decompression bomb protection
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +44,7 @@ class LLMImageClassifier:
             raise ValueError("AZURE_OPENAI_ENDPOINT is required for ACU+LLM image method")
         
         # PDF conversion settings
-        self.dpi = 300
+        self.dpi = 200  # Reduced from 300 to prevent large images
         self.poppler_path = "/opt/homebrew/bin" if Path("/opt/homebrew/bin").exists() else None
         
         # Get Azure credential for OpenAI
@@ -54,7 +58,7 @@ class LLMImageClassifier:
         
         logger.info("ACU+LLM Image Classifier initialized")
     
-    def _convert_pdf_to_images(self, pdf_path: str, output_dir: str) -> List[str]:
+    def _convert_pdf_to_images(self, pdf_path: str, output_dir: str) -> tuple[List[str], float]:
         """
         Convert a PDF file to individual page images.
         
@@ -63,9 +67,10 @@ class LLMImageClassifier:
             output_dir: Directory to save the images
             
         Returns:
-            List of paths to the generated images
+            Tuple of (list of paths to the generated images, conversion time)
         """
-        logger.info(f"Converting PDF to images: {pdf_path}")
+        conversion_start_time = time.time()
+        logger.debug(f"Converting PDF to images: {pdf_path}")
         
         # Create output directory
         pdf_name = Path(pdf_path).stem
@@ -83,12 +88,24 @@ class LLMImageClassifier:
             image_paths = []
             for i, image in enumerate(images, start=1):
                 image_path = page_dir / f"page_{i}.jpg"
-                image.save(str(image_path), 'JPEG')
+                
+                # Resize image if it's too large (to prevent memory issues and reduce token costs)
+                max_dimension = 2048  # Reasonable size for LLM processing
+                if image.width > max_dimension or image.height > max_dimension:
+                    ratio = min(max_dimension / image.width, max_dimension / image.height)
+                    new_width = int(image.width * ratio)
+                    new_height = int(image.height * ratio)
+                    image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                    logger.debug(f"Resized page {i} from original size to {new_width}x{new_height}")
+                
+                # Save with quality optimization
+                image.save(str(image_path), 'JPEG', quality=85, optimize=True)
                 image_paths.append(str(image_path))
                 logger.debug(f"Saved page {i} to {image_path}")
             
-            logger.info(f"Converted PDF to {len(image_paths)} images")
-            return image_paths
+            conversion_duration = time.time() - conversion_start_time
+            logger.info(f"Converted PDF to {len(image_paths)} images in {conversion_duration:.2f}s")
+            return image_paths, conversion_duration
             
         except Exception as e:
             logger.error(f"Error converting PDF to images: {e}")
@@ -123,6 +140,9 @@ class LLMImageClassifier:
         Returns:
             Classification result from LLM
         """
+        llm_start_time = time.time()
+        logger.debug(f"Starting LLM vision classification for page {page_number}")
+        
         # Build category descriptions
         categories_text = "\n\n".join([
             f"{i+1}. **{name}**\n   {desc}"
@@ -190,6 +210,7 @@ Respond with ONLY valid JSON:
             }
             
             response = requests.post(url, headers=headers, json=payload, timeout=30)
+            llm_duration = time.time() - llm_start_time
             
             if response.status_code == 200:
                 result = response.json()
@@ -205,10 +226,12 @@ Respond with ONLY valid JSON:
                 
                 try:
                     classification = json.loads(content)
+                    logger.info(f"LLM vision classification completed in {llm_duration:.2f}s for page {page_number}")
                     return {
                         "page_number": page_number,
                         "classification": classification,
                         "token_usage": token_usage,
+                        "llm_duration": llm_duration,
                         "success": True
                     }
                 except json.JSONDecodeError:
@@ -217,6 +240,7 @@ Respond with ONLY valid JSON:
                         "page_number": page_number,
                         "error": f"Invalid JSON response: {content}",
                         "token_usage": token_usage,
+                        "llm_duration": llm_duration,
                         "success": False
                     }
             else:
@@ -225,13 +249,16 @@ Respond with ONLY valid JSON:
                 return {
                     "page_number": page_number,
                     "error": error_msg,
+                    "llm_duration": llm_duration,
                     "success": False
                 }
         except Exception as e:
+            llm_duration = time.time() - llm_start_time
             logger.exception(f"Error classifying image: {e}")
             return {
                 "page_number": page_number,
                 "error": f"Exception: {str(e)}",
+                "llm_duration": llm_duration,
                 "success": False
             }
     
@@ -245,6 +272,8 @@ Respond with ONLY valid JSON:
         Returns:
             Classification result
         """
+        total_start_time = time.time()
+        
         file_path = document.get('path') or document.get('file_path')
         if not file_path:
             raise ValueError("Document must contain 'path' or 'file_path' key")
@@ -255,14 +284,19 @@ Respond with ONLY valid JSON:
         filename = Path(file_path).name
         logger.info(f"Classifying document: {file_path}")
         
+        # Initialize timing variables
+        conversion_time = 0.0
+        total_llm_time = 0.0
+        
         # Step 1: Convert PDF to images
         logger.debug("Converting PDF to images...")
         try:
-            image_paths = self._convert_pdf_to_images(
+            image_paths, conversion_time = self._convert_pdf_to_images(
                 file_path,
                 str(self._temp_image_dir)
             )
         except Exception as e:
+            total_duration = time.time() - total_start_time
             logger.error(f"Failed to convert PDF: {e}")
             return {
                 'document_type': 'Other',
@@ -272,7 +306,10 @@ Respond with ONLY valid JSON:
                 'metadata': {
                     'file_path': file_path,
                     'filename': filename,
-                    'method': 'llm_image'
+                    'method': 'llm_image',
+                    'total_duration': total_duration,
+                    'conversion_time': conversion_time,
+                    'total_llm_time': 0.0
                 }
             }
         
@@ -287,9 +324,15 @@ Respond with ONLY valid JSON:
             result = self._classify_image_with_llm(image_path, i)
             page_results.append(result)
             
+            # Add LLM timing
+            total_llm_time += result.get('llm_duration', 0.0)
+            
             if result.get('success'):
                 token_usage = result.get('token_usage', {})
                 total_tokens += token_usage.get('total_tokens', 0)
+        
+        # Calculate total duration
+        total_duration = time.time() - total_start_time
         
         # Determine overall classification (most common category from pages)
         successful_results = [r for r in page_results if r.get('success')]
@@ -304,7 +347,17 @@ Respond with ONLY valid JSON:
                     'file_path': file_path,
                     'filename': filename,
                     'method': 'llm_image',
-                    'total_pages': len(image_paths)
+                    'total_pages': len(image_paths),
+                    'successful_pages': 0,
+                    'total_duration': total_duration,
+                    'conversion_time': conversion_time,
+                    'total_llm_time': total_llm_time,
+                    'timing_breakdown': {
+                        'total_duration': total_duration,
+                        'conversion_time': conversion_time,
+                        'llm_duration': total_llm_time,
+                        'other_duration': total_duration - conversion_time - total_llm_time
+                    }
                 }
             }
         
@@ -323,6 +376,11 @@ Respond with ONLY valid JSON:
         avg_confidence = sum(primary_confidences) / len(primary_confidences)
         
         logger.info(f"Classified as: {primary_category} (confidence: {avg_confidence:.3f})")
+        logger.info(f"Total processing time: {total_duration:.2f}s (Conversion: {conversion_time:.2f}s, LLM: {total_llm_time:.2f}s)")
+        
+        # Calculate token usage breakdown
+        total_prompt_tokens = sum(r.get('token_usage', {}).get('prompt_tokens', 0) for r in successful_results)
+        total_completion_tokens = sum(r.get('token_usage', {}).get('completion_tokens', 0) for r in successful_results)
         
         result = {
             'document_type': primary_category,
@@ -332,7 +390,14 @@ Respond with ONLY valid JSON:
                 {
                     'page': r['page_number'],
                     'category': r['classification']['category'],
-                    'confidence': r['classification']['confidence']
+                    'confidence': r['classification']['confidence'],
+                    'reasoning': r['classification'].get('reasoning', ''),
+                    'llm_duration': r.get('llm_duration', 0.0),
+                    'token_usage': {
+                        'prompt_tokens': r.get('token_usage', {}).get('prompt_tokens', 0),
+                        'completion_tokens': r.get('token_usage', {}).get('completion_tokens', 0),
+                        'total_tokens': r.get('token_usage', {}).get('total_tokens', 0)
+                    }
                 }
                 for r in successful_results
             ],
@@ -342,7 +407,20 @@ Respond with ONLY valid JSON:
                 'method': 'llm_image',
                 'total_pages': len(image_paths),
                 'successful_pages': len(successful_results),
-                'total_tokens': total_tokens
+                'total_duration': total_duration,
+                'conversion_time': conversion_time,
+                'total_llm_time': total_llm_time,
+                'timing_breakdown': {
+                    'total_duration': total_duration,
+                    'conversion_time': conversion_time,
+                    'llm_duration': total_llm_time,
+                    'other_duration': total_duration - conversion_time - total_llm_time
+                },
+                'token_usage': {
+                    'total_tokens': total_tokens,
+                    'prompt_tokens': total_prompt_tokens,
+                    'completion_tokens': total_completion_tokens
+                }
             }
         }
         
@@ -362,6 +440,7 @@ Respond with ONLY valid JSON:
         Returns:
             List of classification results
         """
+        batch_start_time = time.time()
         results = []
         
         for doc in documents:
@@ -378,11 +457,22 @@ Respond with ONLY valid JSON:
                     'status': 'error',
                     'metadata': {
                         'file_path': doc.get('path', 'unknown'),
-                        'method': 'llm_image'
+                        'method': 'llm_image',
+                        'total_duration': 0.0,
+                        'conversion_time': 0.0,
+                        'total_llm_time': 0.0
                     }
                 }
             
             results.append(result)
+        
+        # Add batch timing summary
+        batch_duration = time.time() - batch_start_time
+        batch_conversion_time = sum(r.get('metadata', {}).get('conversion_time', 0.0) for r in results)
+        batch_llm_time = sum(r.get('metadata', {}).get('total_llm_time', 0.0) for r in results)
+        
+        logger.info(f"Batch processing completed in {batch_duration:.2f}s for {len(documents)} documents")
+        logger.info(f"Total conversion time: {batch_conversion_time:.2f}s, Total LLM time: {batch_llm_time:.2f}s")
         
         # Save results if configured
         if self.config.SAVE_RESULTS and results:

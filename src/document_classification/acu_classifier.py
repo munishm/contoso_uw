@@ -3,6 +3,7 @@
 import os
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Dict, Any, List
 from datetime import datetime
@@ -76,6 +77,7 @@ class ACUClassifier:
             "description": f"HSBC Document Classifier with segmentation - {self._classifier_id}",
             "config": {
                 "returnDetails": True,
+                "estimateFieldSourceAndConfidence": True,
                 "enableSegment": True,
                 "contentCategories": {
                     name: {"description": desc}
@@ -118,6 +120,9 @@ class ACUClassifier:
         Returns:
             Classification result with document_type, confidence, segments, etc.
         """
+        # Start timing
+        total_start_time = time.time()
+        
         # Ensure classifier exists
         self._ensure_classifier_exists()
         
@@ -131,14 +136,37 @@ class ACUClassifier:
         
         logger.info(f"Classifying document: {file_path}")
         
-        # Classify the document
+        # Classify the document (track only the actual classification operation)
+        # Note: This timing excludes analyzer creation/validation which happens above
+        acu_start_time = time.time()
         response = self.client.classify_document(self._classifier_id, file_path)
         
-        # Poll for results
+        # Poll for results (included in ACU timing as it's part of the classification process)
         result = self.client.poll_result(response)
+        acu_duration = time.time() - acu_start_time
         
         # Extract classification results
-        return self._parse_classification_result(result, file_path)
+        classification_result = self._parse_classification_result(result, file_path)
+        
+        # Add timing information to metadata
+        total_duration = time.time() - total_start_time
+        metadata = classification_result.get('metadata', {})
+        metadata.update({
+            'total_duration': total_duration,
+            'acu_duration': acu_duration,
+            'timing_breakdown': {
+                'total_duration': total_duration,
+                'acu_duration': acu_duration,
+                'other_duration': total_duration - acu_duration
+            }
+        })
+        classification_result['metadata'] = metadata
+        
+        # Save result with complete timing information if configured
+        if self.config.SAVE_RESULTS:
+            self._save_results([classification_result])
+        
+        return classification_result
     
     def _parse_classification_result(
         self, 
@@ -175,18 +203,25 @@ class ACUClassifier:
         
         # Extract segments with categories
         segment_classifications = []
-        
+        logger.info(f"Processing contents for classification segments: {contents}")
         for content in contents:
             segments = content.get('segments', [])
             
             for segment in segments:
+                logger.info(f"Processing segment: {segment}")
                 if 'category' in segment:
+                    # Azure Content Understanding might not provide confidence scores
+                    # Default to 1.0 if not provided
+                    confidence_value = segment.get('confidence')
+                    # if confidence_value is None:
+                    #     confidence_value = 1.0
+                        
                     classification = {
                         'segment_id': segment.get('segmentId', 'unknown'),
                         'category': segment.get('category'),
                         'start_page': segment.get('startPageNumber', 1),
                         'end_page': segment.get('endPageNumber', 1),
-                        'confidence': segment.get('confidence')
+                        'confidence': confidence_value
                     }
                     segment_classifications.append(classification)
         
@@ -206,7 +241,7 @@ class ACUClassifier:
         
         # Primary category from first segment
         primary_category = segment_classifications[0]['category']
-        primary_confidence = segment_classifications[0].get('confidence', 1.0)
+        primary_confidence = segment_classifications[0].get('confidence')
         
         # Build alternatives list from other segments
         alternatives = []
@@ -223,25 +258,38 @@ class ACUClassifier:
         
         logger.info(f"Classified as: {primary_category} (confidence: {primary_confidence})")
         
+        # Generate page-level classifications from segments
+        page_classifications = []
+        for seg in segment_classifications:
+            for page_num in range(seg['start_page'], seg['end_page'] + 1):
+                page_classifications.append({
+                    'page_number': page_num,
+                    'document_type': seg['category'],
+                    'category': seg['category'],  # For consistency with other classifiers
+                    'confidence': seg.get('confidence', 1.0),
+                    'segment_id': seg['segment_id']
+                })
+        
+        # Sort page classifications by page number
+        page_classifications.sort(key=lambda x: x['page_number'])
+        
         result = {
             'document_type': primary_category,
             'confidence': primary_confidence if primary_confidence else 1.0,
             'alternatives': alternatives,
             'segments': segment_classifications,
+            'page_classifications': page_classifications,
             'metadata': {
                 'file_path': file_path,
                 'filename': Path(file_path).name,
                 'method': 'acu_only',
                 'total_segments': len(segment_classifications),
+                'total_pages': len(page_classifications),
                 'token_usage': token_usage,
                 'analyzer_id': actual_result.get('analyzerId'),
                 'api_version': actual_result.get('apiVersion')
             }
         }
-        
-        # Save result if configured
-        if self.config.SAVE_RESULTS:
-            self._save_results([result])
         
         return result
     
