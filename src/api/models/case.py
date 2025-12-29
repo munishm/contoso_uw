@@ -31,11 +31,6 @@ class CaseCreateRequest(BaseModel):
         description="Type of insurance policy",
         examples=["Life Insurance - HNW"],
     )
-    submission_date: date = Field(
-        ...,
-        description="Date the case was submitted",
-        examples=["2025-12-17"],
-    )
     metadata: dict[str, Any] = Field(
         default_factory=dict,
         description="Additional case metadata",
@@ -56,10 +51,6 @@ class CaseUpdateRequest(BaseModel):
         min_length=1,
         max_length=100,
         description="Updated policy type",
-    )
-    submission_date: Optional[date] = Field(
-        default=None,
-        description="Updated submission date",
     )
     status: Optional[CaseStatus] = Field(
         default=None,

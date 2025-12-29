@@ -4,13 +4,13 @@ Case management API endpoints.
 Provides CRUD operations for underwriting cases.
 """
 
-from datetime import date
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 
 from src.api.dependencies import (
     get_case_repository,
+    get_classification_service,
     get_counter_repository,
     get_document_repository,
     get_storage_service,
@@ -27,6 +27,7 @@ from src.api.repositories.case_repository import CaseRepository
 from src.api.repositories.counter_repository import CounterRepository
 from src.api.repositories.document_repository import DocumentRepository
 from src.api.services.case_service import CaseService
+from src.api.services.classification_service import ClassificationService
 from src.api.services.storage_service import StorageService
 
 router = APIRouter(prefix="/cases", tags=["Cases"])
@@ -37,9 +38,16 @@ def get_case_service(
     document_repo: DocumentRepository = Depends(get_document_repository),
     counter_repo: CounterRepository = Depends(get_counter_repository),
     storage_service: StorageService = Depends(get_storage_service),
+    classification_service: ClassificationService = Depends(get_classification_service),
 ) -> CaseService:
     """Dependency to get case service instance."""
-    return CaseService(case_repo, document_repo, counter_repo, storage_service)
+    return CaseService(
+        case_repo, 
+        document_repo, 
+        counter_repo, 
+        storage_service, 
+        classification_service
+    )
 
 
 @router.get(
@@ -98,7 +106,6 @@ async def list_cases(
 async def create_case(
     client_name: str = Form(..., description="Name of the client"),
     policy_type: str = Form(..., description="Type of insurance policy"),
-    submission_date: date = Form(..., description="Date the case was submitted"),
     main_document: UploadFile = File(
         ..., description="Main document file to upload (PDF, DOCX, etc.) - Required"
     ),
@@ -111,7 +118,8 @@ async def create_case(
     Create a new underwriting case.
 
     The case will be created with status DRAFT and a unique case ID
-    in the format CASE-YYYYMM-NNNNNN.
+    in the format CASE-YYYYMM-NNNNNN. The submission date is automatically
+    set to the current date.
 
     A main document must be uploaded during case creation. The main document
     will be stored in blob storage. Documents array will remain empty until
@@ -154,7 +162,6 @@ async def create_case(
     return await service.create_case(
         client_name=client_name,
         policy_type=policy_type,
-        submission_date=submission_date,
         metadata=parsed_metadata,
         user_id=user_id,
         main_document_content=file_content,
@@ -199,7 +206,6 @@ async def update_case(
     case_id: str,
     client_name: Optional[str] = Form(default=None, description="Updated client name"),
     policy_type: Optional[str] = Form(default=None, description="Updated policy type"),
-    submission_date: Optional[date] = Form(default=None, description="Updated submission date"),
     status: Optional[str] = Form(default=None, description="New case status"),
     metadata: Optional[str] = Form(default=None, description="Updated metadata as JSON string"),
     new_document: Optional[UploadFile] = File(default=None, description="New document to add to the case"),
@@ -249,7 +255,6 @@ async def update_case(
     request = CaseUpdateRequest(
         client_name=client_name if client_name and client_name.strip().lower() not in placeholder_values else None,
         policy_type=policy_type if policy_type and policy_type.strip().lower() not in placeholder_values else None,
-        submission_date=submission_date,
         status=parsed_status,
         metadata=parsed_metadata,
     )

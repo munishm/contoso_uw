@@ -26,6 +26,12 @@ from src.api.repositories.counter_repository import CounterRepository
 from src.api.repositories.document_repository import DocumentRepository
 from src.api.services.storage_service import StorageService
 
+# Import TYPE_CHECKING to avoid circular imports
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.api.services.classification_service import ClassificationService
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,6 +44,7 @@ class CaseService:
         document_repository: DocumentRepository,
         counter_repository: CounterRepository,
         storage_service: Optional[StorageService] = None,
+        classification_service: Optional["ClassificationService"] = None,
     ) -> None:
         """
         Initialize case service with repositories.
@@ -47,17 +54,18 @@ class CaseService:
             document_repository: Repository for document data access
             counter_repository: Repository for ID generation
             storage_service: Service for blob storage operations
+            classification_service: Service for document classification
         """
         self.case_repo = case_repository
         self.document_repo = document_repository
         self.counter_repo = counter_repository
         self.storage_service = storage_service
+        self.classification_service = classification_service
 
     async def create_case(
         self,
         client_name: str,
         policy_type: str,
-        submission_date: date,
         metadata: dict[str, Any],
         user_id: str,
         main_document_content: Optional[bytes] = None,
@@ -70,7 +78,6 @@ class CaseService:
         Args:
             client_name: Name of the client
             policy_type: Type of insurance policy
-            submission_date: Date the case was submitted
             metadata: Additional case metadata
             user_id: ID of the user creating the case
             main_document_content: Optional file content of the main document
@@ -102,7 +109,7 @@ class CaseService:
             "case_id": case_id,
             "client_name": client_name,
             "policy_type": policy_type,
-            "submission_date": submission_date.isoformat(),
+            "submission_date": now.date().isoformat(),  # Auto-generated submission date
             "status": CaseStatus.DRAFT.value,
             "created_at": now.isoformat(),
             "updated_at": now.isoformat(),
@@ -135,7 +142,41 @@ class CaseService:
         created = await self.case_repo.create_case(case_data)
         logger.info(f"Case {case_id} created successfully")
 
-        return self._to_detail_response(created)
+        # TODO: Re-enable classification after production deployment
+        # Trigger document classification if a main document was uploaded
+        # if main_document_blob_path and self.classification_service:
+        #     try:
+        #         logger.info(f"Starting document classification for case {case_id}")
+        #         classification_result = await self.classification_service.classify_case_documents(
+        #             case_id=case_id,
+        #             main_document_blob_path=main_document_blob_path,
+        #         )
+        #         logger.info(
+        #             f"Classification completed for case {case_id}: "
+        #             f"{classification_result.get('documents_created', 0)} documents identified"
+        #         )
+        #         
+        #         # Reload case to get updated data after classification
+        #         created = await self.case_repo.get_case(case_id)
+        #     except Exception as e:
+        #         # Log error but don't fail case creation
+        #         logger.error(
+        #             f"Classification failed for case {case_id}: {e}", 
+        #             exc_info=True
+        #         )
+        #         # Update case with classification error
+        #         await self.case_repo.update_case(
+        #             case_id,
+        #             {
+        #                 "processing_status": "failed",
+        #                 "processing_error": str(e),
+        #             }
+        #         )
+        #         created = await self.case_repo.get_case(case_id)
+
+        # Load documents for the case (may have been created during classification)
+        documents = await self.document_repo.list_documents_for_case(case_id)
+        return self._to_detail_response(created, documents)
 
     async def get_case(self, case_id: str) -> CaseDetailResponse:
         """
@@ -206,9 +247,6 @@ class CaseService:
 
         if request.policy_type is not None:
             updates["policy_type"] = request.policy_type
-
-        if request.submission_date is not None:
-            updates["submission_date"] = request.submission_date.isoformat()
 
         if request.metadata is not None:
             updates["metadata"] = request.metadata
