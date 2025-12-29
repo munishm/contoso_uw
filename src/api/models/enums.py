@@ -45,6 +45,25 @@ class DocumentType(str, Enum):
     OTHER = "other"
 
 
+class CaseProcessingStatus(str, Enum):
+    """Status values for overall case document processing."""
+
+    NOT_STARTED = "not_started"  # No main document uploaded
+    EXTRACTING_DOCUMENTS = "extracting_documents"  # Extracting individual docs from main doc
+    PROCESSING_DOCUMENTS = "processing_documents"  # Individual docs being classified/summarized
+    GENERATING_CASE_SUMMARY = "generating_case_summary"  # All docs done, generating case summary
+    COMPLETED = "completed"  # All processing complete including case summary
+    FAILED = "failed"  # Processing failed
+
+
+class DocumentSource(str, Enum):
+    """Source of a document - how it was added to the case."""
+
+    MAIN_UPLOAD = "main_upload"  # The original uploaded main document
+    EXTRACTED = "extracted"  # Extracted from the main document
+    MANUAL_UPLOAD = "manual_upload"  # Manually uploaded separately (future use)
+
+
 # Status transition rules for cases
 VALID_CASE_TRANSITIONS: dict[CaseStatus, list[CaseStatus]] = {
     CaseStatus.DRAFT: [CaseStatus.IN_REVIEW, CaseStatus.DELETED],

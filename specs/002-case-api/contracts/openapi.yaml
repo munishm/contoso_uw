@@ -41,11 +41,6 @@ paths:
           description: Filter by case status
           schema:
             $ref: '#/components/schemas/CaseStatus'
-        - name: assigned_to
-          in: query
-          description: Filter by assigned underwriter ID
-          schema:
-            type: string
         - name: include_deleted
           in: query
           description: Include soft-deleted cases
@@ -68,14 +63,52 @@ paths:
       tags:
         - Cases
       summary: Create a new case
-      description: Create a new underwriting case with the provided metadata.
+      description: |
+        Create a new underwriting case with a required main document upload.
+        The main document will be stored in blob storage. The documents array
+        will remain empty until background processing extracts individual
+        documents from the main document.
       operationId: createCase
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: '#/components/schemas/CaseCreateRequest'
+              type: object
+              required:
+                - client_name
+                - policy_type
+                - submission_date
+                - main_document
+              properties:
+                client_name:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  description: Client name
+                  example: John Smith
+                policy_type:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  description: Type of insurance policy
+                  example: Life Insurance - HNW
+                submission_date:
+                  type: string
+                  format: date
+                  description: Date the case was submitted
+                  example: "2025-12-17"
+                metadata:
+                  type: string
+                  description: JSON string containing additional metadata
+                  example: '{"priority": "high", "region": "APAC"}'
+                main_document:
+                  type: string
+                  format: binary
+                  description: Main document file (PDF, DOCX, DOC, PNG, JPG, JPEG, TIFF) - Required
+            encoding:
+              main_document:
+                contentType: application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, image/png, image/jpeg, image/tiff
       responses:
         '201':
           description: Case created successfully
@@ -119,16 +152,42 @@ paths:
       tags:
         - Cases
       summary: Update case
-      description: Update case metadata and/or status. Status changes are validated against allowed transitions.
+      description: Update case metadata and/or status with optional document upload. Status changes are validated against allowed transitions.
       operationId: updateCase
       parameters:
         - $ref: '#/components/parameters/CaseIdParam'
       requestBody:
-        required: true
+        required: false
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: '#/components/schemas/CaseUpdateRequest'
+              type: object
+              properties:
+                client_name:
+                  type: string
+                  maxLength: 255
+                  description: Updated client name
+                policy_type:
+                  type: string
+                  maxLength: 100
+                  description: Updated policy type
+                submission_date:
+                  type: string
+                  format: date
+                  description: Updated submission date
+                status:
+                  type: string
+                  description: New case status (must follow valid transition rules)
+                metadata:
+                  type: string
+                  description: Updated metadata as JSON string
+                new_document:
+                  type: string
+                  format: binary
+                  description: New document to add to the case
+            encoding:
+              new_document:
+                contentType: application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, image/png, image/jpeg, image/tiff
       responses:
         '200':
           description: Case updated successfully
@@ -138,8 +197,6 @@ paths:
                 $ref: '#/components/schemas/CaseDetailResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -164,8 +221,6 @@ paths:
       responses:
         '204':
           description: Case deleted successfully
-        '401':
-          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -258,61 +313,10 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-    post:
-      tags:
-        - Documents
-      summary: Upload document to case
-      description: |
-        Upload a document to an existing case. The document is stored in Azure Blob Storage
-        and automatic processing (classification, entity extraction, summarization) is triggered.
-        Maximum file size: 50 MB. Maximum 50 documents per case.
-      operationId: uploadDocument
-      parameters:
-        - $ref: '#/components/parameters/CaseIdParam'
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - file
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: Document file (PDF, DOCX, DOC, PNG, JPG, JPEG, TIFF)
-                metadata:
-                  type: string
-                  description: JSON string containing additional metadata
-            encoding:
-              file:
-                contentType: application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, image/png, image/jpeg, image/tiff
-      responses:
-        '201':
-          description: Document uploaded successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DocumentDetailResponse'
-        '400':
-          description: Invalid file format or size exceeds 50 MB
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          description: Maximum document limit (50) reached for this case
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/InternalError'
+  # Note: Document upload is handled during case creation (POST /cases - required) or
+  # case update (PUT /cases/{caseId} - optional). Documents array is populated by 
+  # background processing that extracts individual documents from the main document 
+  # and stores them in blob storage under case_id folder.
 
   /cases/{caseId}/documents/{documentId}:
     get:
@@ -644,37 +648,8 @@ components:
         - other
       description: Document classification type
 
-    CaseCreateRequest:
-      type: object
-      required:
-        - client_name
-        - policy_type
-        - submission_date
-      properties:
-        client_name:
-          type: string
-          minLength: 1
-          maxLength: 255
-          description: Client name
-          example: John Smith
-        policy_type:
-          type: string
-          minLength: 1
-          maxLength: 100
-          description: Type of insurance policy
-          example: Life Insurance - HNW
-        submission_date:
-          type: string
-          format: date
-          description: Date the case was submitted
-          example: "2025-12-17"
-        metadata:
-          type: object
-          additionalProperties: true
-          description: Additional case metadata
-          example:
-            priority: high
-            region: APAC
+    # CaseCreateRequest is now handled via multipart/form-data in the createCase endpoint
+    # with fields: client_name, policy_type, submission_date, metadata (JSON string), main_document (file)
 
     CaseUpdateRequest:
       type: object
@@ -692,9 +667,6 @@ components:
           format: date
         status:
           $ref: '#/components/schemas/CaseStatus'
-        assigned_to:
-          type: string
-          description: Underwriter user ID to assign the case to
         metadata:
           type: object
           additionalProperties: true
@@ -749,13 +721,40 @@ components:
         created_by:
           type: string
           description: User ID who created the case
-        assigned_to:
-          type: string
-          nullable: true
-          description: Underwriter user ID assigned to the case
         metadata:
           type: object
           additionalProperties: true
+        main_document_blob_path:
+          type: string
+          nullable: true
+          description: Blob storage path of the uploaded main document
+        processing_status:
+          type: string
+          enum: [not_started, extracting_documents, processing_documents, generating_case_summary, completed, failed]
+          default: not_started
+          description: Overall processing status of the case
+        total_documents_expected:
+          type: integer
+          nullable: true
+          description: Total documents expected after extraction
+        documents_processed_count:
+          type: integer
+          default: 0
+          description: Number of documents that have been processed
+        processing_started_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When processing started
+        processing_completed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When processing completed
+        processing_error:
+          type: string
+          nullable: true
+          description: Error message if processing failed
         documents:
           type: array
           items:
@@ -807,6 +806,24 @@ components:
           format: float
           minimum: 0
           maximum: 1
+        source:
+          type: string
+          enum: [main_upload, extracted, manual_upload]
+          nullable: true
+          description: Document source (main_upload, extracted, manual_upload)
+        parent_document_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Parent document ID if extracted from main document
+        page_range:
+          type: string
+          nullable: true
+          description: Page range in parent document (e.g., '1-5')
+        summary:
+          type: string
+          nullable: true
+          description: Document summary
         created_at:
           type: string
           format: date-time

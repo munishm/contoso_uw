@@ -165,21 +165,19 @@ class CaseRepository(BaseRepository[dict[str, Any]]):
 
     async def list_cases(
         self,
-        page: int = 1,
-        page_size: int = 20,
-        status: Optional[str] = None,
-        assigned_to: Optional[str] = None,
-        include_deleted: bool = False,
+        filters: Optional[dict[str, Any]] = None,
+        client_name_search: Optional[str] = None,
+        limit: int = 20,
+        offset: int = 0,
     ) -> tuple[list[dict[str, Any]], int]:
         """
         List cases with pagination and filtering.
 
         Args:
-            page: Page number (1-indexed)
-            page_size: Items per page
-            status: Optional status filter
-            assigned_to: Optional assigned user filter
-            include_deleted: Whether to include soft-deleted cases
+            filters: Optional dictionary of field filters (e.g., {"status": "active", "is_deleted": False})
+            client_name_search: Optional search string for client name
+            limit: Maximum number of results to return
+            offset: Number of results to skip
 
         Returns:
             Tuple of (list of cases, total count)
@@ -188,17 +186,19 @@ class CaseRepository(BaseRepository[dict[str, Any]]):
         conditions = []
         parameters: list[dict[str, Any]] = []
 
-        if not include_deleted:
-            conditions.append("(c.status != @deleted_status OR c.status = null)")
-            parameters.append({"name": "@deleted_status", "value": CaseStatus.DELETED.value})
+        if filters:
+            if "is_deleted" in filters:
+                if not filters["is_deleted"]:
+                    conditions.append("(c.status != @deleted_status OR NOT IS_DEFINED(c.status))")
+                    parameters.append({"name": "@deleted_status", "value": CaseStatus.DELETED.value})
 
-        if status:
-            conditions.append("c.status = @status")
-            parameters.append({"name": "@status", "value": status})
+            if "status" in filters:
+                conditions.append("c.status = @status")
+                parameters.append({"name": "@status", "value": filters["status"]})
 
-        if assigned_to:
-            conditions.append("c.assigned_to = @assigned_to")
-            parameters.append({"name": "@assigned_to", "value": assigned_to})
+        if client_name_search:
+            conditions.append("CONTAINS(LOWER(c.client_name), LOWER(@client_name_search))")
+            parameters.append({"name": "@client_name_search", "value": client_name_search})
 
         where_clause = " AND ".join(conditions) if conditions else "1=1"
 
@@ -206,12 +206,11 @@ class CaseRepository(BaseRepository[dict[str, Any]]):
         total = await self.count(where_clause, parameters)
 
         # Get paginated results
-        offset = (page - 1) * page_size
         query = f"""
             SELECT * FROM c
             WHERE {where_clause}
             ORDER BY c.created_at DESC
-            OFFSET {offset} LIMIT {page_size}
+            OFFSET {offset} LIMIT {limit}
         """
 
         cases = await self.query(query, parameters)

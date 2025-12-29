@@ -7,7 +7,6 @@ Provides access to entity extraction results and document summaries.
 from fastapi import APIRouter, Depends
 
 from src.api.dependencies import (
-    CurrentUser,
     get_case_repository,
     get_document_repository,
     get_entity_repository,
@@ -56,14 +55,12 @@ def get_processing_service(
     summary="Get document entities",
     description="Retrieve all entities extracted from a document.",
     responses={
-        401: {"model": ErrorResponse, "description": "Unauthorized"},
         404: {"model": ErrorResponse, "description": "Document not found"},
     },
 )
 async def get_document_entities(
     case_id: str,
     document_id: str,
-    current_user: CurrentUser = None,
     service: ProcessingService = Depends(get_processing_service),
 ) -> EntityListResponse:
     """
@@ -81,7 +78,6 @@ async def get_document_entities(
     summary="Explain entity extraction",
     description="Get explanation for why an entity was extracted.",
     responses={
-        401: {"model": ErrorResponse, "description": "Unauthorized"},
         404: {"model": ErrorResponse, "description": "Entity not found"},
     },
 )
@@ -89,7 +85,6 @@ async def explain_entity(
     case_id: str,
     document_id: str,
     entity_id: str,
-    current_user: CurrentUser = None,
     service: ProcessingService = Depends(get_processing_service),
 ) -> EntityExplainResponse:
     """
@@ -107,14 +102,12 @@ async def explain_entity(
     summary="Get document summary",
     description="Retrieve AI-generated summary for a document.",
     responses={
-        401: {"model": ErrorResponse, "description": "Unauthorized"},
         404: {"model": ErrorResponse, "description": "Document not found"},
     },
 )
 async def get_document_summary(
     case_id: str,
     document_id: str,
-    current_user: CurrentUser = None,
     service: ProcessingService = Depends(get_processing_service),
 ) -> DocumentSummaryDetailResponse:
     """
@@ -131,14 +124,12 @@ async def get_document_summary(
     summary="Explain summary generation",
     description="Get explanation of how document summary was generated.",
     responses={
-        401: {"model": ErrorResponse, "description": "Unauthorized"},
         404: {"model": ErrorResponse, "description": "Document or summary not found"},
     },
 )
 async def explain_summary(
     case_id: str,
     document_id: str,
-    current_user: CurrentUser = None,
     service: ProcessingService = Depends(get_processing_service),
 ) -> SummaryExplainResponse:
     """
@@ -157,7 +148,6 @@ async def explain_summary(
     description="Request reprocessing of a document.",
     responses={
         400: {"model": ErrorResponse, "description": "Document is currently processing"},
-        401: {"model": ErrorResponse, "description": "Unauthorized"},
         404: {"model": ErrorResponse, "description": "Document not found"},
     },
 )
@@ -165,7 +155,6 @@ async def reprocess_document(
     case_id: str,
     document_id: str,
     request: ReprocessRequest = ReprocessRequest(),
-    current_user: CurrentUser = None,
     service: ProcessingService = Depends(get_processing_service),
 ) -> ReprocessResponse:
     """
@@ -174,7 +163,7 @@ async def reprocess_document(
     Queues the document for reprocessing. By default, all stages
     (classification, extraction, summarization) are rerun.
     """
-    user_id = current_user.sub if current_user else "anonymous"
+    user_id = "system"
     return await service.reprocess_document(case_id, document_id, request, user_id)
 
 
@@ -187,13 +176,11 @@ async def reprocess_document(
     summary="Get case entities aggregate",
     description="Get aggregated entity statistics for a case.",
     responses={
-        401: {"model": ErrorResponse, "description": "Unauthorized"},
         404: {"model": ErrorResponse, "description": "Case not found"},
     },
 )
 async def get_case_entities_aggregate(
     case_id: str,
-    current_user: CurrentUser = None,
     service: ProcessingService = Depends(get_processing_service),
 ) -> EntityAggregateResponse:
     """
@@ -211,13 +198,11 @@ async def get_case_entities_aggregate(
     summary="Get case summary",
     description="Get comprehensive summary of all documents in a case.",
     responses={
-        401: {"model": ErrorResponse, "description": "Unauthorized"},
         404: {"model": ErrorResponse, "description": "Case not found"},
     },
 )
 async def get_case_summary(
     case_id: str,
-    current_user: CurrentUser = None,
     service: ProcessingService = Depends(get_processing_service),
 ) -> CaseSummaryDetailResponse:
     """

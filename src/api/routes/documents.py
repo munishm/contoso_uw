@@ -1,20 +1,20 @@
 """
 Document management API endpoints.
 
-Provides upload, download, and management operations for case documents.
+Provides download, and management operations for case documents.
+Note: Document upload is handled during case creation. Individual documents
+are extracted from the main document by background processing.
 """
 
-from fastapi import APIRouter, Depends, File, UploadFile, status
+from fastapi import APIRouter, Depends, status
 
 from src.api.dependencies import (
-    CurrentUser,
     get_case_repository,
     get_document_repository,
     get_entity_repository,
     get_queue_service,
     get_storage_service,
 )
-from src.api.middleware.error_handler import BadRequestError
 from src.api.models.common import ErrorResponse
 from src.api.models.document import (
     DocumentDetailResponse,
@@ -22,7 +22,6 @@ from src.api.models.document import (
     DocumentEntitiesResponse,
     DocumentListResponse,
     DocumentMetadataUpdateRequest,
-    DocumentUploadResponse,
 )
 from src.api.repositories.case_repository import CaseRepository
 from src.api.repositories.document_repository import DocumentRepository
@@ -51,66 +50,28 @@ def get_document_service(
     "/cases/{case_id}/documents",
     response_model=DocumentListResponse,
     summary="List case documents",
-    description="Retrieve all documents attached to a case.",
+    description="Retrieve all documents attached to a case. Documents are populated by background processing that extracts individual documents from the main document.",
     responses={
-        401: {"model": ErrorResponse, "description": "Unauthorized"},
         404: {"model": ErrorResponse, "description": "Case not found"},
     },
 )
 async def list_documents(
     case_id: str,
-    current_user: CurrentUser = None,
     service: DocumentService = Depends(get_document_service),
 ) -> DocumentListResponse:
     """
     List all documents for a case.
 
     Returns document summaries including processing status.
+    Documents are populated by background processing that extracts
+    individual documents from the main document uploaded during case creation.
     """
     return await service.list_documents(case_id)
 
 
-@router.post(
-    "/cases/{case_id}/documents",
-    response_model=DocumentUploadResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Upload document",
-    description="Upload a document to a case. Max 50 MB, max 50 documents per case.",
-    responses={
-        400: {"model": ErrorResponse, "description": "Invalid file or limit exceeded"},
-        401: {"model": ErrorResponse, "description": "Unauthorized"},
-        404: {"model": ErrorResponse, "description": "Case not found"},
-    },
-)
-async def upload_document(
-    case_id: str,
-    file: UploadFile = File(..., description="Document file to upload"),
-    current_user: CurrentUser = None,
-    service: DocumentService = Depends(get_document_service),
-) -> DocumentUploadResponse:
-    """
-    Upload a document to a case.
-
-    Supported formats: PDF, JPEG, PNG, TIFF, DOC, DOCX.
-    Maximum file size: 50 MB.
-    Maximum documents per case: 50.
-
-    The document will be queued for processing (classification, OCR, entity extraction).
-    """
-    if not file.filename:
-        raise BadRequestError("Filename is required")
-
-    content_type = file.content_type or "application/octet-stream"
-    file_content = await file.read()
-
-    user_id = current_user.sub if current_user else "anonymous"
-    return await service.upload_document(
-        case_id=case_id,
-        filename=file.filename,
-        content_type=content_type,
-        file_content=file_content,
-        user_id=user_id,
-    )
+# Note: Document upload endpoint removed. Main document is now uploaded
+# during case creation. Individual documents are extracted from the main
+# document by background processing and stored under case_id folder.
 
 
 @router.get(
@@ -119,14 +80,12 @@ async def upload_document(
     summary="Get document details",
     description="Retrieve detailed information about a specific document.",
     responses={
-        401: {"model": ErrorResponse, "description": "Unauthorized"},
         404: {"model": ErrorResponse, "description": "Document not found"},
     },
 )
 async def get_document(
     case_id: str,
     document_id: str,
-    current_user: CurrentUser = None,
     service: DocumentService = Depends(get_document_service),
 ) -> DocumentDetailResponse:
     """
@@ -144,7 +103,6 @@ async def get_document(
     description="Update document classification or custom metadata.",
     responses={
         400: {"model": ErrorResponse, "description": "Invalid request data"},
-        401: {"model": ErrorResponse, "description": "Unauthorized"},
         404: {"model": ErrorResponse, "description": "Document not found"},
     },
 )
@@ -152,7 +110,6 @@ async def update_document(
     case_id: str,
     document_id: str,
     request: DocumentMetadataUpdateRequest,
-    current_user: CurrentUser = None,
     service: DocumentService = Depends(get_document_service),
 ) -> DocumentDetailResponse:
     """
@@ -160,7 +117,7 @@ async def update_document(
 
     Only classification and custom metadata can be updated.
     """
-    user_id = current_user.sub if current_user else "anonymous"
+    user_id = "system"
     return await service.update_document(case_id, document_id, request, user_id)
 
 
@@ -170,14 +127,12 @@ async def update_document(
     summary="Delete document",
     description="Permanently delete a document and its associated data.",
     responses={
-        401: {"model": ErrorResponse, "description": "Unauthorized"},
         404: {"model": ErrorResponse, "description": "Document not found"},
     },
 )
 async def delete_document(
     case_id: str,
     document_id: str,
-    current_user: CurrentUser = None,
     service: DocumentService = Depends(get_document_service),
 ) -> None:
     """
@@ -186,7 +141,7 @@ async def delete_document(
     This permanently removes the document from storage and database.
     Associated entities and summaries are also deleted.
     """
-    user_id = current_user.sub if current_user else "anonymous"
+    user_id = "system"
     await service.delete_document(case_id, document_id, user_id)
 
 
@@ -196,14 +151,12 @@ async def delete_document(
     summary="Get download URL",
     description="Generate a temporary download URL for a document.",
     responses={
-        401: {"model": ErrorResponse, "description": "Unauthorized"},
         404: {"model": ErrorResponse, "description": "Document not found"},
     },
 )
 async def get_download_url(
     case_id: str,
     document_id: str,
-    current_user: CurrentUser = None,
     service: DocumentService = Depends(get_document_service),
 ) -> DocumentDownloadResponse:
     """

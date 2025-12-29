@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from typing import BinaryIO, Optional
 
 from azure.identity.aio import DefaultAzureCredential
-from azure.storage.blob import BlobSasPermissions, generate_blob_sas
+from azure.storage.blob import BlobSasPermissions, ContentSettings, generate_blob_sas
 from azure.storage.blob.aio import BlobServiceClient, ContainerClient
 
 from src.api.config.settings import Settings, get_settings
@@ -35,22 +35,62 @@ class StorageService:
     async def initialize(self, settings: Optional[Settings] = None) -> None:
         """Initialize the Blob Storage client."""
         if self._client is not None:
+            logger.debug("Blob Storage client already initialized")
             return
 
         settings = settings or get_settings()
+        logger.info("Initializing Blob Storage client...")
+        logger.info(f"  BLOB_ACCOUNT_URL: {settings.blob_account_url}")
+        logger.info(f"  BLOB_CONTAINER_NAME: {settings.blob_container_name}")
+        logger.info(f"  BLOB_CONNECTION_STRING present: {bool(settings.blob_connection_string)}")
 
-        if settings.blob_connection_string:
-            # Use connection string
-            self._client = BlobServiceClient.from_connection_string(
-                settings.blob_connection_string
+        # Prefer Azure AD authentication (works with subscription policies that disable key access)
+        if settings.blob_account_url:
+            # Use Azure AD authentication via DefaultAzureCredential
+            # This uses Azure CLI login for local dev, Managed Identity in Azure
+            logger.info("Attempting Azure AD authentication for Blob Storage...")
+            self._credential = DefaultAzureCredential(
+                logging_enable=True,
+                exclude_environment_credential=False,
+                exclude_managed_identity_credential=False,
             )
-        elif settings.blob_account_url:
-            # Use Azure AD authentication
-            self._credential = DefaultAzureCredential()
+            
+            # Try to get a token to verify identity
+            try:
+                token = await self._credential.get_token("https://storage.azure.com/.default")
+                logger.info(f"Successfully acquired token for storage, expires: {token.expires_on}")
+                # Decode token to see which identity is used (without logging sensitive info)
+                import base64
+                import json
+                try:
+                    # JWT tokens have 3 parts separated by dots
+                    parts = token.token.split('.')
+                    if len(parts) >= 2:
+                        # Decode the payload (second part)
+                        payload = parts[1]
+                        # Add padding if needed
+                        padding = 4 - len(payload) % 4
+                        if padding != 4:
+                            payload += '=' * padding
+                        decoded = base64.b64decode(payload)
+                        claims = json.loads(decoded)
+                        logger.info(f"Token identity - oid: {claims.get('oid', 'N/A')}, appid: {claims.get('appid', 'N/A')}, sub: {claims.get('sub', 'N/A')}")
+                except Exception as decode_err:
+                    logger.warning(f"Could not decode token claims: {decode_err}")
+            except Exception as token_err:
+                logger.error(f"Failed to acquire storage token: {token_err}", exc_info=True)
+            
             self._client = BlobServiceClient(
                 account_url=settings.blob_account_url,
                 credential=self._credential,
             )
+            logger.info("Using Azure AD authentication for Blob Storage")
+        elif settings.blob_connection_string:
+            # Fallback to connection string (if key access is enabled)
+            self._client = BlobServiceClient.from_connection_string(
+                settings.blob_connection_string
+            )
+            logger.info("Using connection string for Blob Storage")
         else:
             raise ValueError("BLOB_ACCOUNT_URL or BLOB_CONNECTION_STRING is required")
 
@@ -86,6 +126,34 @@ class StorageService:
         # Sanitize filename to prevent path traversal
         safe_filename = filename.replace("/", "_").replace("\\", "_")
         return f"cases/{case_id}/documents/{document_id}/{safe_filename}"
+
+    async def upload_blob(
+        self,
+        blob_path: str,
+        content: bytes,
+        content_type: str = "application/octet-stream",
+    ) -> str:
+        """
+        Upload raw bytes to a blob path.
+
+        Args:
+            blob_path: The full path for the blob (e.g., "case_id/main/filename.pdf")
+            content: File content as bytes
+            content_type: MIME type of the file
+
+        Returns:
+            The blob path where the content was uploaded
+        """
+        blob_client = self.container.get_blob_client(blob_path)
+
+        await blob_client.upload_blob(
+            content,
+            content_settings=ContentSettings(content_type=content_type),
+            overwrite=True,
+        )
+
+        logger.info(f"Uploaded blob to: {blob_path} ({len(content)} bytes)")
+        return blob_path
 
     async def upload_document(
         self,
@@ -125,7 +193,7 @@ class StorageService:
 
         await blob_client.upload_blob(
             content_bytes,
-            content_settings={"content_type": content_type},
+            content_settings=ContentSettings(content_type=content_type),
             overwrite=True,
         )
 

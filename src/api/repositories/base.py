@@ -26,6 +26,7 @@ class CosmosDBClient:
     _instance: Optional["CosmosDBClient"] = None
     _client: Optional[CosmosClient] = None
     _database: Optional[DatabaseProxy] = None
+    _credential: Optional[DefaultAzureCredential] = None
 
     def __new__(cls) -> "CosmosDBClient":
         """Ensure single instance."""
@@ -36,26 +37,38 @@ class CosmosDBClient:
     async def initialize(self, settings: Optional[Settings] = None) -> None:
         """Initialize the Cosmos DB client."""
         if self._client is not None:
+            logger.debug("Cosmos DB client already initialized")
             return
 
         settings = settings or get_settings()
+        logger.info(f"Initializing Cosmos DB client...")
+        logger.info(f"  COSMOS_ENDPOINT: {settings.cosmos_endpoint}")
+        logger.info(f"  COSMOS_DATABASE_NAME: {settings.cosmos_database_name}")
+        logger.info(f"  COSMOS_KEY present: {bool(settings.cosmos_key)}")
 
         if not settings.cosmos_endpoint:
             raise ValueError("COSMOS_ENDPOINT is required")
 
-        if settings.cosmos_key:
-            # Use key-based authentication
+        # Prefer Azure AD authentication (works when key-based auth is disabled by policy)
+        try:
+            logger.info("Attempting Azure AD authentication for Cosmos DB...")
+            self._credential = DefaultAzureCredential()
             self._client = CosmosClient(
                 url=settings.cosmos_endpoint,
-                credential=settings.cosmos_key,
+                credential=self._credential,
             )
-        else:
-            # Use Azure AD authentication
-            credential = DefaultAzureCredential()
-            self._client = CosmosClient(
-                url=settings.cosmos_endpoint,
-                credential=credential,
-            )
+            logger.info("Using Azure AD authentication for Cosmos DB")
+        except Exception as aad_error:
+            logger.warning(f"Azure AD auth failed: {aad_error}")
+            if settings.cosmos_key:
+                # Fallback to key-based authentication
+                logger.info("Falling back to key-based authentication for Cosmos DB")
+                self._client = CosmosClient(
+                    url=settings.cosmos_endpoint,
+                    credential=settings.cosmos_key,
+                )
+            else:
+                raise
 
         self._database = self._client.get_database_client(settings.cosmos_database_name)
         logger.info(f"Cosmos DB client initialized for database: {settings.cosmos_database_name}")
@@ -66,7 +79,10 @@ class CosmosDBClient:
             await self._client.close()
             self._client = None
             self._database = None
-            logger.info("Cosmos DB client closed")
+        if self._credential:
+            await self._credential.close()
+            self._credential = None
+        logger.info("Cosmos DB client closed")
 
     def get_container(self, container_name: str) -> ContainerProxy:
         """Get a container proxy."""
@@ -233,7 +249,6 @@ class BaseRepository(Generic[T]):
         """
         kwargs: dict[str, Any] = {
             "query": query,
-            "enable_cross_partition_query": partition_key is None,
         }
         if parameters:
             kwargs["parameters"] = parameters
@@ -271,7 +286,6 @@ class BaseRepository(Generic[T]):
 
         kwargs: dict[str, Any] = {
             "query": count_query,
-            "enable_cross_partition_query": partition_key is None,
         }
         if parameters:
             kwargs["parameters"] = parameters
