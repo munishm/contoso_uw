@@ -14,7 +14,13 @@ const apiClient: AxiosInstance = axios.create({
 apiClient.interceptors.response.use(
   response => response,
   (error: AxiosError) => {
-    console.error('API Error:', error.response?.data || error.message)
+    const errorData = error.response?.data as any
+    console.error('API Error:', {
+      status: error.response?.status,
+      url: error.config?.url,
+      message: errorData?.message || error.message,
+      details: errorData?.details
+    })
     return Promise.reject(error)
   }
 )

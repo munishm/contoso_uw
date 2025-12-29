@@ -7,9 +7,21 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/DashboardView.vue')
   },
   {
+    path: '/cases/:caseId',
+    name: 'CaseDetail',
+    component: () => import('@/views/CaseDetailView.vue'),
+    props: true
+  },
+  {
     path: '/cases/:caseId/upload',
     name: 'DocumentUpload',
     component: () => import('@/views/DocumentUploadView.vue'),
+    props: true
+  },
+  {
+    path: '/cases/:caseId/documents/:documentId',
+    name: 'DocumentDetail',
+    component: () => import('@/views/DocumentResultsView.vue'),
     props: true
   },
   {

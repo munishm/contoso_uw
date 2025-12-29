@@ -24,11 +24,11 @@ export const useDocumentsStore = defineStore('documents', () => {
         uploadProgress.value = progress
       })
 
-      documents.value.set(document.id, document)
+      documents.value.set(document.document_id, document)
       currentDocument.value = document
 
       // Start polling for processing status
-      pollProcessingStatus(document.id)
+      pollProcessingStatus(caseId, document.document_id)
 
       return document
     } catch (err) {
@@ -39,14 +39,14 @@ export const useDocumentsStore = defineStore('documents', () => {
     }
   }
 
-  async function fetchDocument(documentId: string): Promise<Document> {
+  async function fetchDocument(caseId: string, documentId: string): Promise<Document> {
     isLoading.value = true
     error.value = null
 
     try {
-      const document = await documentsService.getDocument(documentId)
-      documents.value.set(document.id, document)
-      if (currentDocument.value?.id === documentId) {
+      const document = await documentsService.getDocument(caseId, documentId)
+      documents.value.set(document.document_id, document)
+      if (currentDocument.value?.document_id === documentId) {
         currentDocument.value = document
       }
       return document
@@ -58,7 +58,7 @@ export const useDocumentsStore = defineStore('documents', () => {
     }
   }
 
-  async function pollProcessingStatus(documentId: string): Promise<void> {
+  async function pollProcessingStatus(caseId: string, documentId: string): Promise<void> {
     let attempts = 0
 
     const poll = async () => {
@@ -68,17 +68,12 @@ export const useDocumentsStore = defineStore('documents', () => {
       }
 
       try {
-        const status = await documentsService.getProcessingStatus(documentId)
-        const doc = documents.value.get(documentId)
-
-        if (doc) {
-          doc.processing_status = status.status
-          doc.processing_status_detail = status
-        }
+        const document = await documentsService.getProcessingStatus(caseId, documentId)
+        documents.value.set(documentId, document)
 
         // Stop polling if completed or failed
-        if (status.status === 'completed' || status.status === 'failed') {
-          await fetchDocument(documentId)
+        if (document.processing_status === 'completed' || document.processing_status === 'failed') {
+          await fetchDocument(caseId, documentId)
           return
         }
 

@@ -12,10 +12,9 @@ export const documentsService = {
   ): Promise<Document> {
     const formData = new FormData()
     formData.append('file', file)
-    formData.append('case_id', caseId)
 
-    const response = await apiClient.post<Document>('/documents/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    const response = await apiClient.post<Document>(`/cases/${caseId}/documents`, formData, {
+      headers: { 'Content-Type': undefined }, // Let browser set Content-Type with boundary
       onUploadProgress: progressEvent => {
         if (progressEvent.total) {
           const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
@@ -30,16 +29,16 @@ export const documentsService = {
   /**
    * Get a document by ID with full details
    */
-  async getDocument(documentId: string): Promise<Document> {
-    const response = await apiClient.get<Document>(`/documents/${documentId}`)
+  async getDocument(caseId: string, documentId: string): Promise<Document> {
+    const response = await apiClient.get<Document>(`/cases/${caseId}/documents/${documentId}`)
     return response.data
   },
 
   /**
    * Get processing status for a document
    */
-  async getProcessingStatus(documentId: string): Promise<ProcessingStatus> {
-    const response = await apiClient.get<ProcessingStatus>(`/documents/${documentId}/status`)
+  async getProcessingStatus(caseId: string, documentId: string): Promise<ProcessingStatus> {
+    const response = await apiClient.get<ProcessingStatus>(`/cases/${caseId}/documents/${documentId}`)
     return response.data
   },
 
@@ -47,7 +46,7 @@ export const documentsService = {
    * Get documents for a specific case
    */
   async getDocumentsByCase(caseId: string): Promise<Document[]> {
-    const response = await apiClient.get<Document[]>(`/cases/${caseId}/documents`)
-    return response.data
+    const response = await apiClient.get<{ items: Document[] }>(`/cases/${caseId}/documents`)
+    return response.data.items
   }
 }
