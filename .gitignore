@@ -77,3 +77,5 @@ dist/
 uv.lock
 
 deploy.zip
+**/document_classification/**/data/
+**/document_classification/**/output/
