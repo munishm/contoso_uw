@@ -11,8 +11,8 @@ from datetime import datetime
 from .utils.config import Config
 from .utils.acu_client import AzureContentUnderstandingClient
 from .utils.auth import create_token_provider
-from src.shared.models.classification import ClassificationResponse, PageClassification, TokenUsage
-
+from .utils.split_document import split_document_from_response, DocumentSplitter
+from src.shared.models.classification import ClassificationResponse, PageClassification, TokenUsage, Documents
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +156,25 @@ class DirectDocumentClassifier:
         # Create ClassificationResponse object
         response = self._create_classification_response(classification_result, file_path)
         
+
+        split_response = split_document_from_response(response, self.config.OUTPUT_DIR)
+        
+        # Add split document paths to the classification response
+        if split_response and isinstance(split_response, dict):
+            # split_response is a dictionary with document_type as keys and file paths as values
+            # Convert to list of Documents objects for response.documents field
+            split_documents = []
+            for doc_type, file_path in split_response.items():
+                split_documents.append(Documents(
+                    document_type=doc_type,
+                    file_path=file_path
+                ))
+            
+            if split_documents:
+                response.documents = split_documents
+        logger.info(f"Document split completed. Output files: {response}")
+
+
         # Save result with complete timing information if configured
         if self.config.SAVE_RESULTS:
             # Add timing to metadata for saving
@@ -345,7 +364,8 @@ class DirectDocumentClassifier:
             total_pages=metadata.get('total_pages', 0),
             total_segments=metadata.get('total_segments', 0),
             token_usage=token_usage,
-            pages=page_classifications
+            pages=page_classifications,
+            documents=None  # Initialize as None to avoid serialization warnings
         )
 
     def classify_batch(self, documents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -374,7 +394,7 @@ class DirectDocumentClassifier:
                     'status': 'error',
                     'metadata': {
                         'file_path': doc.get('path', 'unknown'),
-                        'method': 'acu_only'
+                        'method': 'direct_classification'
                     }
                 }
             
@@ -389,7 +409,7 @@ class DirectDocumentClassifier:
     def _save_results(self, results: List[Dict[str, Any]]):
         """Save classification results to JSON."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = self.config.OUTPUT_DIR / f"acu_classification_results_{timestamp}.json"
+        output_file = self.config.OUTPUT_DIR / f"classification_results_{timestamp}.json"
         
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(results, f, indent=2, ensure_ascii=False)
