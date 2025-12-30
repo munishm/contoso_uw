@@ -1,6 +1,6 @@
 [project]
 name = "hsbc-document-classification"
-version = "0.1.0"
+version = "0.1.1"
 description = "Document classification component for HSBC underwriting automation"
 requires-python = ">=3.11"
 dependencies = [
