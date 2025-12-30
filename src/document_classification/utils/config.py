@@ -6,7 +6,13 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Load .env from document_classification folder (parent of utils)
+# Also check for .env in current working directory for flexibility
 _env_path = Path(__file__).parent.parent / '.env'
+_cwd_env_path = Path.cwd() / '.env'
+
+# Load from both locations, with module-local taking precedence
+if _cwd_env_path.exists():
+    load_dotenv(_cwd_env_path, override=False)
 if _env_path.exists():
     load_dotenv(_env_path, override=True)
 

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, Any, List
 from datetime import datetime
 
-from .utils.config import Config
+from .utils.config import Config, ClassificationMethod
 from .utils.acu_client import AzureContentUnderstandingClient
 from .utils.auth import create_token_provider
 from .utils.split_document import split_document_from_response, DocumentSplitter
@@ -191,6 +191,21 @@ class DirectDocumentClassifier:
         
         return response
     
+    def _get_segment_confidence(self, segment: Dict[str, Any], default_value: float = 1.0) -> float:
+        """
+        Extract confidence value from segment with consistent default handling.
+        
+        Args:
+            segment: Segment dictionary from ACU API
+            default_value: Default confidence if not provided
+            
+        Returns:
+            Confidence value as float
+        """
+        confidence = segment.get('confidence')
+        if confidence is None:
+            return default_value
+        return float(confidence) if confidence is not None else default_value
 
     def _parse_classification_result(
         self, 
@@ -237,18 +252,12 @@ class DirectDocumentClassifier:
             for segment in segments:
                 logger.info(f"Processing segment: {segment}")
                 if 'category' in segment:
-                    # Azure Content Understanding might not provide confidence scores
-                    # Default to 1.0 if not provided
-                    confidence_value = segment.get('confidence')
-                    # if confidence_value is None:
-                    #     confidence_value = 1.0
-                        
                     classification = {
                         'segment_id': segment.get('segmentId', 'unknown'),
                         'category': segment.get('category'),
                         'start_page': segment.get('startPageNumber', 1),
                         'end_page': segment.get('endPageNumber', 1),
-                        'confidence': confidence_value
+                        'confidence': self._get_segment_confidence(segment)
                     }
                     segment_classifications.append(classification)
         
@@ -261,55 +270,58 @@ class DirectDocumentClassifier:
                 'error': 'No classification segments found',
                 'metadata': {
                     'file_path': file_path,
-                    'method': 'acu_only',
+                    'method': ClassificationMethod.DIRECT_CLASSIFICATION.value,
                     'token_usage': token_usage
                 }
             }
         
         # Primary category from first segment
         primary_category = segment_classifications[0]['category']
-        primary_confidence = segment_classifications[0].get('confidence')
+        primary_confidence = self._get_segment_confidence(segment_classifications[0])
         
-        # Build alternatives list from other segments
+        # Process all segments to build alternatives and page classifications in a single loop
         alternatives = []
+        page_classifications = []
         seen_categories = {primary_category}
         
-        for seg in segment_classifications[1:]:
-            cat = seg['category']
-            if cat not in seen_categories:
-                alternatives.append({
-                    'document_type': cat,
-                    'confidence': seg.get('confidence', 0.0)
-                })
-                seen_categories.add(cat)
-        
-        logger.info(f"Classified as: {primary_category} (confidence: {primary_confidence})")
-        
-        # Generate page-level classifications from segments
-        page_classifications = []
-        for seg in segment_classifications:
+        for i, seg in enumerate(segment_classifications):
+            segment_confidence = self._get_segment_confidence(seg)
+            
+            # Build alternatives list (skip first segment as it's the primary)
+            if i > 0:
+                cat = seg['category']
+                if cat not in seen_categories:
+                    alternatives.append({
+                        'document_type': cat,
+                        'confidence': segment_confidence
+                    })
+                    seen_categories.add(cat)
+            
+            # Generate page-level classifications for all segments
             for page_num in range(seg['start_page'], seg['end_page'] + 1):
                 page_classifications.append({
                     'page_number': page_num,
                     'document_type': seg['category'],
                     'category': seg['category'],  # For consistency with other classifiers
-                    'confidence': seg.get('confidence', 1.0),
+                    'confidence': segment_confidence,
                     'segment_id': seg['segment_id']
                 })
+        
+        logger.info(f"Classified as: {primary_category} (confidence: {primary_confidence})")
         
         # Sort page classifications by page number
         page_classifications.sort(key=lambda x: x['page_number'])
         
         result = {
             'document_type': primary_category,
-            'confidence': primary_confidence if primary_confidence else 1.0,
+            'confidence': primary_confidence,
             'alternatives': alternatives,
             'segments': segment_classifications,
             'page_classifications': page_classifications,
             'metadata': {
                 'file_path': file_path,
                 'filename': Path(file_path).name,
-                'method': 'acu_only',
+                'method': ClassificationMethod.DIRECT_CLASSIFICATION.value,
                 'total_segments': len(segment_classifications),
                 'total_pages': len(page_classifications),
                 'token_usage': token_usage,
@@ -368,43 +380,6 @@ class DirectDocumentClassifier:
             documents=None  # Initialize as None to avoid serialization warnings
         )
 
-    def classify_batch(self, documents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Classify multiple documents.
-        
-        Args:
-            documents: List of document dicts
-            
-        Returns:
-            List of classification results
-        """
-        results = []
-        
-        for doc in documents:
-            try:
-                result = self.classify(doc)
-                result['status'] = 'success'
-            except Exception as e:
-                logger.error(f"Error classifying {doc.get('path', 'unknown')}: {e}")
-                result = {
-                    'document_type': 'Other',
-                    'confidence': 0.0,
-                    'alternatives': [],
-                    'error': str(e),
-                    'status': 'error',
-                    'metadata': {
-                        'file_path': doc.get('path', 'unknown'),
-                        'method': 'direct_classification'
-                    }
-                }
-            
-            results.append(result)
-        
-        # Save results if configured
-        if self.config.SAVE_RESULTS and results:
-            self._save_results(results)
-        
-        return results
     
     def _save_results(self, results: List[Dict[str, Any]]):
         """Save classification results to JSON."""
