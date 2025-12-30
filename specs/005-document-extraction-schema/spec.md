@@ -73,9 +73,9 @@ As a system administrator, I need to manage different schema versions for the sa
 
 ### Edge Cases
 
-- What happens when a document doesn't match any registered document type or version?
+- When a document doesn't match any registered document type or version, system MUST reject the document with an error message requiring the user to manually specify document type before processing
 - How does system handle documents where required fields are missing or unreadable (poor scan quality)?
-- What happens when multiple models produce conflicting extracted values with similar confidence scores?
+- When multiple models produce conflicting extracted values with similar confidence scores, system MUST return all conflicting values with their confidence scores and flag the field for human review
 - How does system handle documents with non-standard layouts (rotated pages, mixed orientations)?
 - What happens when a citation bounding box spans multiple lines or pages?
 - How does system handle very large documents (100+ pages) with extraction performance constraints?
@@ -85,16 +85,17 @@ As a system administrator, I need to manage different schema versions for the sa
 
 ### Functional Requirements
 
-- **FR-001**: System MUST maintain a registry of document types, each uniquely identified by type name and version (e.g., "Bank_Statement v2.0", "Tax_Return_1040 v2023")
+- **FR-001**: System MUST maintain a registry of document types in a versioned database, each uniquely identified by type name and version (e.g., "Bank_Statement v2.0", "Tax_Return_1040 v2023"), supporting runtime updates and audit history
 - **FR-002**: System MUST define an input schema for each document type version that specifies which fields to extract, field data types, validation rules, and whether fields are required or optional
 - **FR-003**: System MUST define an output schema for each document type version that specifies the structure of extracted data, including field names, data types, formatting rules, and citation requirements
 - **FR-004**: System MUST support configuration of one or more extraction models per document type, including model identifiers, execution order, and combination strategies (sequential, parallel, ensemble)
 - **FR-005**: System MUST support multiple model types for extraction, including OCR engines, layout analyzers, specialized document-specific models, and model ensembles
-- **FR-006**: System MUST support model fallback chains where if a primary model fails or returns low confidence results, subsequent models are automatically invoked
+- **FR-006**: System MUST support model fallback chains where if a primary model fails or returns results below a configurable confidence threshold (default 70%, configurable per document type), subsequent models are automatically invoked
 - **FR-007**: System MUST support configuration of model combination strategies including: sequential processing (Model B processes Model A output), parallel processing with voting/averaging, and hybrid approaches
+- **FR-007a**: When ensemble models produce conflicting values with similar confidence scores, system MUST return all conflicting values with confidence scores and flag the field for human review
 - **FR-008**: System MUST include citations in extraction output that indicate the source location of each extracted value
 - **FR-009**: System MUST support page-level citations that specify which page number(s) each extracted field was found on
-- **FR-010**: System MUST support bounding box citations that specify precise coordinates (page, x, y, width, height) where each extracted field was found
+- **FR-010**: System MUST support bounding box citations using normalized coordinates (0.0-1.0) representing percentages of page dimensions, specifying page number, x, y, width, and height values (resolution-independent)
 - **FR-011**: System MUST allow configuration of citation granularity per document type (page-level, bounding-box, or both)
 - **FR-012**: System MUST handle documents that match a registered type but are missing required fields by returning null/empty values with clear indicators
 - **FR-013**: System MUST validate extracted data against output schema rules (data types, formats, required fields) before returning results
@@ -124,3 +125,13 @@ As a system administrator, I need to manage different schema versions for the sa
 - **SC-006**: System handles model failures gracefully with fallback mechanisms, maintaining 95%+ availability
 - **SC-007**: Configuration changes to schemas or models take effect immediately without system restart
 - **SC-008**: Extraction throughput supports processing at least 100 documents per hour for standard document types
+
+## Clarifications
+
+### Session 2025-12-29
+
+- Q: When a submitted document doesn't match any registered document type or version, what should the system do? → A: Reject the document with an error message prompting the user to specify the document type manually
+- Q: What defines "low confidence" that triggers model fallback? → A: Configurable threshold per document type (default 70%)
+- Q: When multiple models produce conflicting values with similar confidence, how should the system resolve? → A: Return all conflicting values with confidence scores and flag the field for human review
+- Q: What coordinate system and units should be used for bounding box citations? → A: Normalized coordinates (0.0-1.0) as percentages of page dimensions (resolution-independent)
+- Q: How should document type schemas be stored and made available? → A: Database with versioned records, enabling runtime updates and audit history
