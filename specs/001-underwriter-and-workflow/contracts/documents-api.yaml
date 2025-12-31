@@ -1,0 +1,575 @@
+openapi: 3.0.3
+info:
+  title: Documents API
+  description: API endpoints for document upload, processing, and retrieval
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000/api
+    description: Local development server
+  - url: https://api-dev.hsbc-underwriting.internal/api
+    description: Development environment
+
+paths:
+  /documents/upload:
+    post:
+      summary: Upload a document
+      description: Upload a PDF document for processing
+      operationId: uploadDocument
+      tags:
+        - Documents
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - case_id
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: PDF file (max 20MB)
+                case_id:
+                  type: string
+                  format: uuid
+                  description: Associated case ID
+      responses:
+        '201':
+          description: Document uploaded successfully and processing started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          description: Invalid file or parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalidFileType:
+                  value:
+                    error_code: INVALID_FILE_TYPE
+                    message: Only PDF files are supported
+                    timestamp: '2025-12-17T10:30:00Z'
+                fileTooLarge:
+                  value:
+                    error_code: FILE_TOO_LARGE
+                    message: File size must be less than 20MB
+                    timestamp: '2025-12-17T10:30:00Z'
+        '404':
+          description: Case not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /documents/{document_id}:
+    get:
+      summary: Get document by ID
+      description: Retrieve document with all processing results
+      operationId: getDocumentById
+      tags:
+        - Documents
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          description: Document UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successfully retrieved document
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentDetail'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /documents/{document_id}/status:
+    get:
+      summary: Get processing status
+      description: Retrieve current processing status for polling
+      operationId: getProcessingStatus
+      tags:
+        - Documents
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          description: Document UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successfully retrieved processing status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessingStatus'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /documents/{document_id}/retry:
+    post:
+      summary: Retry failed processing
+      description: Retry processing for a failed document
+      operationId: retryDocumentProcessing
+      tags:
+        - Documents
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          description: Document UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Processing restarted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          description: Document is not in failed state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /documents/{document_id}/download:
+    get:
+      summary: Download original document
+      description: Download the original uploaded PDF file
+      operationId: downloadDocument
+      tags:
+        - Documents
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          description: Document UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: File download
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              description: Attachment with original filename
+              schema:
+                type: string
+                example: 'attachment; filename="application-form-a.pdf"'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Document:
+      type: object
+      required:
+        - id
+        - case_id
+        - filename
+        - upload_timestamp
+        - processing_status
+        - file_size
+      properties:
+        id:
+          type: string
+          format: uuid
+        case_id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        upload_timestamp:
+          type: string
+          format: date-time
+        processing_status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        document_type:
+          type: string
+          enum: [form_a, form_b, unknown]
+          nullable: true
+        classification_confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+          nullable: true
+        file_size:
+          type: integer
+          description: File size in bytes
+        uploader_id:
+          type: string
+          nullable: true
+        blob_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Azure Blob Storage URL
+
+    DocumentSummary:
+      type: object
+      required:
+        - id
+        - case_id
+        - filename
+        - upload_timestamp
+        - processing_status
+      properties:
+        id:
+          type: string
+          format: uuid
+        case_id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        upload_timestamp:
+          type: string
+          format: date-time
+        processing_status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        document_type:
+          type: string
+          enum: [form_a, form_b, unknown]
+          nullable: true
+        classification_confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+          nullable: true
+
+    DocumentDetail:
+      allOf:
+        - $ref: '#/components/schemas/Document'
+        - type: object
+          properties:
+            classification_result:
+              $ref: '#/components/schemas/ClassificationResult'
+              nullable: true
+            extracted_fields:
+              type: array
+              items:
+                $ref: '#/components/schemas/ExtractedField'
+            summaries:
+              type: array
+              items:
+                $ref: '#/components/schemas/Summary'
+            processing_status_detail:
+              $ref: '#/components/schemas/ProcessingStatus'
+
+    ClassificationResult:
+      type: object
+      required:
+        - id
+        - document_id
+        - predicted_type
+        - confidence_score
+        - model_version
+        - processing_timestamp
+      properties:
+        id:
+          type: string
+          format: uuid
+        document_id:
+          type: string
+          format: uuid
+        predicted_type:
+          type: string
+          enum: [form_a, form_b, unknown]
+        confidence_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+        model_version:
+          type: string
+        processing_timestamp:
+          type: string
+          format: date-time
+        raw_output:
+          type: string
+          nullable: true
+
+    ExtractedField:
+      type: object
+      required:
+        - id
+        - document_id
+        - field_name
+        - field_value
+        - confidence_score
+        - source_location
+        - extraction_method
+      properties:
+        id:
+          type: string
+          format: uuid
+        document_id:
+          type: string
+          format: uuid
+        field_name:
+          type: string
+        field_value:
+          type: string
+        confidence_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+        source_location:
+          $ref: '#/components/schemas/SourceLocation'
+        extraction_method:
+          type: string
+          enum: [rule_based, llm]
+        data_type:
+          type: string
+          enum: [string, number, date, boolean]
+          nullable: true
+
+    Summary:
+      type: object
+      required:
+        - id
+        - document_id
+        - summary_type
+        - summary_text
+        - citations
+        - generation_timestamp
+        - model_version
+      properties:
+        id:
+          type: string
+          format: uuid
+        document_id:
+          type: string
+          format: uuid
+        summary_type:
+          type: string
+          enum: [extractive, abstractive]
+        summary_text:
+          type: string
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Citation'
+        generation_timestamp:
+          type: string
+          format: date-time
+        model_version:
+          type: string
+        word_count:
+          type: integer
+          nullable: true
+
+    Citation:
+      type: object
+      required:
+        - id
+        - summary_id
+        - cited_text
+        - source_page_number
+      properties:
+        id:
+          type: string
+          format: uuid
+        summary_id:
+          type: string
+          format: uuid
+        cited_text:
+          type: string
+        source_page_number:
+          type: integer
+          minimum: 1
+        source_bounding_box:
+          $ref: '#/components/schemas/BoundingBox'
+          nullable: true
+        citation_number:
+          type: integer
+          nullable: true
+
+    ProcessingStatus:
+      type: object
+      required:
+        - id
+        - document_id
+        - status
+        - progress_percentage
+        - step_details
+        - last_updated
+      properties:
+        id:
+          type: string
+          format: uuid
+        document_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        progress_percentage:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+        estimated_completion_time:
+          type: string
+          format: date-time
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+        step_details:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProcessingStep'
+        last_updated:
+          type: string
+          format: date-time
+
+    ProcessingStep:
+      type: object
+      required:
+        - step_name
+        - status
+      properties:
+        step_name:
+          type: string
+          enum: [ocr, classification, extraction, summarization]
+        status:
+          type: string
+          enum: [pending, in_progress, completed, failed]
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+
+    SourceLocation:
+      type: object
+      required:
+        - page_number
+      properties:
+        page_number:
+          type: integer
+          minimum: 1
+        bounding_box:
+          $ref: '#/components/schemas/BoundingBox'
+          nullable: true
+
+    BoundingBox:
+      type: object
+      required:
+        - x
+        - y
+        - width
+        - height
+      properties:
+        x:
+          type: number
+          format: float
+          description: Left coordinate (normalized 0-1 or pixels)
+        y:
+          type: number
+          format: float
+          description: Top coordinate
+        width:
+          type: number
+          format: float
+        height:
+          type: number
+          format: float
+
+    Error:
+      type: object
+      required:
+        - error_code
+        - message
+        - timestamp
+      properties:
+        error_code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time

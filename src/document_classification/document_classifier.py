@@ -8,22 +8,23 @@ from pathlib import Path
 from typing import Dict, Any, List
 from datetime import datetime
 
-from .utils.config import Config
+from .utils.config import Config, ClassificationMethod
 from .utils.acu_client import AzureContentUnderstandingClient
 from .utils.auth import create_token_provider
-
+from .utils.split_document import split_document_from_response, DocumentSplitter
+from src.shared.models.classification import ClassificationResponse, PageClassification, TokenUsage, Documents
 
 logger = logging.getLogger(__name__)
 
 
-class ACUClassifier:
+class DirectDocumentClassifier:
     """
     Document classifier using Azure Content Understanding only.
     
     This implementation uses Azure Content Understanding's built-in
     classification capabilities without additional LLM processing.
     """
-    
+
     def __init__(self, config: Config = None):
         """
         Initialize the ACU classifier.
@@ -110,7 +111,8 @@ class ACUClassifier:
         
         return self._classifier_info
     
-    def classify(self, document: Dict[str, Any]) -> Dict[str, Any]:
+
+    def classify(self, document: Dict[str, Any]) -> ClassificationResponse:
         """
         Classify a document using ACU.
         
@@ -150,24 +152,61 @@ class ACUClassifier:
         
         # Add timing information to metadata
         total_duration = time.time() - total_start_time
-        metadata = classification_result.get('metadata', {})
-        metadata.update({
-            'total_duration': total_duration,
-            'acu_duration': acu_duration,
-            'timing_breakdown': {
-                'total_duration': total_duration,
-                'acu_duration': acu_duration,
-                'other_duration': total_duration - acu_duration
-            }
-        })
-        classification_result['metadata'] = metadata
         
+        # Create ClassificationResponse object
+        response = self._create_classification_response(classification_result, file_path)
+        
+
+        split_response = split_document_from_response(response, self.config.OUTPUT_DIR)
+        
+        # Add split document paths to the classification response
+        if split_response and isinstance(split_response, dict):
+            # split_response is a dictionary with document_type as keys and file paths as values
+            # Convert to list of Documents objects for response.documents field
+            split_documents = []
+            for doc_type, file_path in split_response.items():
+                split_documents.append(Documents(
+                    document_type=doc_type,
+                    file_path=file_path
+                ))
+            
+            if split_documents:
+                response.documents = split_documents
+        logger.info(f"Document split completed. Output files: {response}")
+
+
         # Save result with complete timing information if configured
         if self.config.SAVE_RESULTS:
+            # Add timing to metadata for saving
+            classification_result['metadata'].update({
+                'total_duration': total_duration,
+                'acu_duration': acu_duration,
+                'timing_breakdown': {
+                    'total_duration': total_duration,
+                    'acu_duration': acu_duration,
+                    'other_duration': total_duration - acu_duration
+                }
+            })
             self._save_results([classification_result])
         
-        return classification_result
+        return response
     
+    def _get_segment_confidence(self, segment: Dict[str, Any], default_value: float = 1.0) -> float:
+        """
+        Extract confidence value from segment with consistent default handling.
+        
+        Args:
+            segment: Segment dictionary from ACU API
+            default_value: Default confidence if not provided
+            
+        Returns:
+            Confidence value as float
+        """
+        confidence = segment.get('confidence')
+        if confidence is None:
+            return default_value
+        return float(confidence) if confidence is not None else default_value
+
     def _parse_classification_result(
         self, 
         result: Dict[str, Any], 
@@ -191,14 +230,17 @@ class ACUClassifier:
         if 'usage' in result:
             usage_data = result['usage']
             tokens = usage_data.get('tokens', {})
+
             
             prompt_tokens = tokens.get('gpt-4.1-input', 0)
             completion_tokens = tokens.get('gpt-4.1-output', 0)
+            contextualization_tokens = usage_data.get('contextualizationTokens', 0)
             
             token_usage = {
                 'prompt_tokens': prompt_tokens,
                 'completion_tokens': completion_tokens,
-                'total_tokens': prompt_tokens + completion_tokens
+                'total_tokens': prompt_tokens + completion_tokens,
+                'contextualization_tokens': contextualization_tokens
             }
         
         # Extract segments with categories
@@ -210,18 +252,12 @@ class ACUClassifier:
             for segment in segments:
                 logger.info(f"Processing segment: {segment}")
                 if 'category' in segment:
-                    # Azure Content Understanding might not provide confidence scores
-                    # Default to 1.0 if not provided
-                    confidence_value = segment.get('confidence')
-                    # if confidence_value is None:
-                    #     confidence_value = 1.0
-                        
                     classification = {
                         'segment_id': segment.get('segmentId', 'unknown'),
                         'category': segment.get('category'),
                         'start_page': segment.get('startPageNumber', 1),
                         'end_page': segment.get('endPageNumber', 1),
-                        'confidence': confidence_value
+                        'confidence': self._get_segment_confidence(segment)
                     }
                     segment_classifications.append(classification)
         
@@ -234,55 +270,58 @@ class ACUClassifier:
                 'error': 'No classification segments found',
                 'metadata': {
                     'file_path': file_path,
-                    'method': 'acu_only',
+                    'method': ClassificationMethod.DIRECT_CLASSIFICATION.value,
                     'token_usage': token_usage
                 }
             }
         
         # Primary category from first segment
         primary_category = segment_classifications[0]['category']
-        primary_confidence = segment_classifications[0].get('confidence')
+        primary_confidence = self._get_segment_confidence(segment_classifications[0])
         
-        # Build alternatives list from other segments
+        # Process all segments to build alternatives and page classifications in a single loop
         alternatives = []
+        page_classifications = []
         seen_categories = {primary_category}
         
-        for seg in segment_classifications[1:]:
-            cat = seg['category']
-            if cat not in seen_categories:
-                alternatives.append({
-                    'document_type': cat,
-                    'confidence': seg.get('confidence', 0.0)
-                })
-                seen_categories.add(cat)
-        
-        logger.info(f"Classified as: {primary_category} (confidence: {primary_confidence})")
-        
-        # Generate page-level classifications from segments
-        page_classifications = []
-        for seg in segment_classifications:
+        for i, seg in enumerate(segment_classifications):
+            segment_confidence = self._get_segment_confidence(seg)
+            
+            # Build alternatives list (skip first segment as it's the primary)
+            if i > 0:
+                cat = seg['category']
+                if cat not in seen_categories:
+                    alternatives.append({
+                        'document_type': cat,
+                        'confidence': segment_confidence
+                    })
+                    seen_categories.add(cat)
+            
+            # Generate page-level classifications for all segments
             for page_num in range(seg['start_page'], seg['end_page'] + 1):
                 page_classifications.append({
                     'page_number': page_num,
                     'document_type': seg['category'],
                     'category': seg['category'],  # For consistency with other classifiers
-                    'confidence': seg.get('confidence', 1.0),
+                    'confidence': segment_confidence,
                     'segment_id': seg['segment_id']
                 })
+        
+        logger.info(f"Classified as: {primary_category} (confidence: {primary_confidence})")
         
         # Sort page classifications by page number
         page_classifications.sort(key=lambda x: x['page_number'])
         
         result = {
             'document_type': primary_category,
-            'confidence': primary_confidence if primary_confidence else 1.0,
+            'confidence': primary_confidence,
             'alternatives': alternatives,
             'segments': segment_classifications,
             'page_classifications': page_classifications,
             'metadata': {
                 'file_path': file_path,
                 'filename': Path(file_path).name,
-                'method': 'acu_only',
+                'method': ClassificationMethod.DIRECT_CLASSIFICATION.value,
                 'total_segments': len(segment_classifications),
                 'total_pages': len(page_classifications),
                 'token_usage': token_usage,
@@ -293,48 +332,59 @@ class ACUClassifier:
         
         return result
     
-    def classify_batch(self, documents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Classify multiple documents.
+    def _create_classification_response(
+        self, 
+        classification_result: Dict[str, Any], 
+        file_path: str
+    ) -> ClassificationResponse:
+        """Create a ClassificationResponse object from the parsed result.
         
         Args:
-            documents: List of document dicts
+            classification_result: Parsed classification result
+            file_path: Path to the classified document
             
         Returns:
-            List of classification results
+            ClassificationResponse object
         """
-        results = []
+        # Convert page_classifications to PageClassification objects
+        page_classifications = [
+            PageClassification(
+                page_number=page['page_number'],
+                document_type=page['document_type'],
+                segment_id=page['segment_id'],
+                confidence=page['confidence']
+            )
+            for page in classification_result.get('page_classifications', [])
+        ]
         
-        for doc in documents:
-            try:
-                result = self.classify(doc)
-                result['status'] = 'success'
-            except Exception as e:
-                logger.error(f"Error classifying {doc.get('path', 'unknown')}: {e}")
-                result = {
-                    'document_type': 'Other',
-                    'confidence': 0.0,
-                    'alternatives': [],
-                    'error': str(e),
-                    'status': 'error',
-                    'metadata': {
-                        'file_path': doc.get('path', 'unknown'),
-                        'method': 'acu_only'
-                    }
-                }
-            
-            results.append(result)
+        # Create TokenUsage object if token usage data exists
+        token_usage = None
+        metadata = classification_result.get('metadata', {})
+        token_data = metadata.get('token_usage')
+        if token_data:
+            token_usage = TokenUsage(
+                prompt_tokens=token_data.get('prompt_tokens', 0),
+                completion_tokens=token_data.get('completion_tokens', 0),
+                total_tokens=token_data.get('total_tokens', 0),
+                contextualization_tokens=token_data.get('contextualization_tokens')
+            )
         
-        # Save results if configured
-        if self.config.SAVE_RESULTS and results:
-            self._save_results(results)
-        
-        return results
+        # Create ClassificationResponse object
+        return ClassificationResponse(
+            analyzer_id=metadata.get('analyzer_id', self._classifier_id),
+            file_path=file_path,
+            total_pages=metadata.get('total_pages', 0),
+            total_segments=metadata.get('total_segments', 0),
+            token_usage=token_usage,
+            pages=page_classifications,
+            documents=None  # Initialize as None to avoid serialization warnings
+        )
+
     
     def _save_results(self, results: List[Dict[str, Any]]):
         """Save classification results to JSON."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = self.config.OUTPUT_DIR / f"acu_classification_results_{timestamp}.json"
+        output_file = self.config.OUTPUT_DIR / f"classification_results_{timestamp}.json"
         
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(results, f, indent=2, ensure_ascii=False)
