@@ -6,7 +6,12 @@ requires-python = ">=3.11"
 dependencies = [
     "azure-ai-documentintelligence>=1.0.0",
     "azure-core>=1.29.0",
+    "azure-cosmos>=4.5.0",
+    "openai",
+    "azure-identity>=1.15.0",
+    "jsonschema>=4.20.0",
     "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
 ]
 
 [build-system]

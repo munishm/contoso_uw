@@ -17,7 +17,7 @@ from .middleware.correlation import CorrelationMiddleware
 from .middleware.error_handler import setup_exception_handlers
 from .middleware.logging import LoggingMiddleware
 from .repositories.base import cosmos_client
-from .routes import cases, documents, health, processing
+from .routes import cases, documents, extraction, health, processing
 from .services.queue_service import queue_service
 from .services.storage_service import storage_service
 
@@ -143,6 +143,7 @@ def create_app() -> FastAPI:
     app.include_router(cases.router, prefix=api_prefix)
     app.include_router(documents.router, prefix=api_prefix)
     app.include_router(processing.router, prefix=api_prefix)
+    app.include_router(extraction.router, prefix=api_prefix)
 
     return app
 

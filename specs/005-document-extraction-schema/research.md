@@ -102,19 +102,36 @@ ExtractionModelAdapter
 
 ### 6. Integration with Existing Codebase
 
-**Decision**: Extend existing patterns in `src/api/`
+**Decision**: Extend `src/entity_extraction/` module with schema-based extraction
 
 **Integration Points**:
-- `src/api/models/entity.py`: Extend `EntityResponse` with citation details
-- `src/api/models/document.py`: Add schema reference fields
-- `src/api/services/processing_service.py`: Add schema-based extraction orchestration
-- `src/api/repositories/`: Add schema repository for Cosmos DB
+- `src/entity_extraction/`: Add schema-based extraction services and models
+- `src/orchestration/`: Call extraction module from workflow nodes
+- `src/interfaces/`: Define shared extraction type contracts
 
 **Existing Patterns to Follow**:
 - Pydantic models with `Field` descriptions and validation
 - Repository pattern for data access
 - Service layer for business logic
 - Async/await for I/O operations
+
+**Module Interface**:
+```python
+# Called from orchestration workflows
+from src.entity_extraction.services import SchemaExtractionService
+
+extraction_service = SchemaExtractionService(
+    schema_repo=schema_repository,
+    extraction_repo=extraction_repository
+)
+
+# Usage in orchestration
+result = await extraction_service.extract_document(
+    document_id="doc-123",
+    document_type_id="type-456",
+    version="2.0.0"
+)
+```
 
 ### 7. Performance Targets
 
