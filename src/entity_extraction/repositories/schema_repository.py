@@ -38,7 +38,7 @@ class SchemaRepository:
         """Create a new document type."""
         item = document_type.model_dump(mode='json')
         item['id'] = str(document_type.id)
-        item['partition_key'] = 'document_type'
+        item['document_type_id'] = str(document_type.id)  # Use own ID as partition key
         item['type'] = 'document_type'
         
         created = self.schema_container.create_item(item)
@@ -49,7 +49,7 @@ class SchemaRepository:
         try:
             item = self.schema_container.read_item(
                 item=str(type_id),
-                partition_key='document_type'
+                partition_key=str(type_id)  # Use document type ID as partition key
             )
             return DocumentType.model_validate(item)
         except exceptions.CosmosResourceNotFoundError:
@@ -73,7 +73,7 @@ class SchemaRepository:
         """Create a new schema version."""
         item = version.model_dump(mode='json')
         item['id'] = str(version.id)
-        item['partition_key'] = str(version.document_type_id)
+        item['document_type_id'] = str(version.document_type_id)  # Explicit for clarity
         item['type'] = 'schema_version'
         
         created = self.schema_container.create_item(item)

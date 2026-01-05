@@ -56,22 +56,11 @@ def get_schema_service(schema_repo=Depends(get_schema_repository)):
 
 def get_extraction_service(
     schema_repo=Depends(get_schema_repository),
-    extraction_repo=Depends(get_extraction_repository)
+    extraction_repo=Depends(get_extraction_repository),
+    model_repo=Depends(get_extraction_model_repository)
 ):
-    """Get extraction service with registered adapters."""
-    service = SchemaExtractionService(schema_repo, extraction_repo)
-    
-    # Register GPT-4 Vision adapter
-    config = get_config()
-    vision_adapter = AzureOpenAIVisionAdapter(
-        endpoint=config.openai_endpoint,
-        api_key=config.openai_key,
-        deployment=config.openai_deployment_gpt4_vision
-    )
-    service.register_adapter("azure_gpt4_vision", vision_adapter)
-    
-    # TODO: Register Document Intelligence adapter in Phase 4
-    
+    """Get extraction service with model repository for dynamic adapter creation."""
+    service = SchemaExtractionService(schema_repo, extraction_repo, model_repo)
     return service
 
 
@@ -109,6 +98,7 @@ class ExtractionModelCreate(BaseModel):
     type: ModelType
     endpoint: Optional[str] = None
     version: str
+    api_version: Optional[str] = None
     capabilities: List[str] = []
 
 
@@ -268,6 +258,7 @@ async def register_extraction_model(
             type=request.type,
             endpoint=request.endpoint,
             version=request.version,
+            api_version=request.api_version,
             capabilities=request.capabilities
         )
         created = await model_repo.create_model(model)

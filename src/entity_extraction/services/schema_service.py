@@ -147,7 +147,7 @@ class SchemaService:
             version=version,
             input_schema=input_schema,
             output_schema=output_schema,
-            model_config=model_config,
+            extraction_config=extraction_config,
             citation_level=CitationLevel(citation_level),
             confidence_threshold=confidence_threshold,
             created_by=created_by

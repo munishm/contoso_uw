@@ -69,7 +69,7 @@ class DocumentTypeVersion(BaseModel):
     created_by: str = Field(..., description="User who created the version")
     is_active: bool = Field(default=True, description="Whether this version is usable")
     
-    model_config = ConfigDict(
+    extraction_config = ConfigDict(
         json_schema_extra={
             "examples": [
                 {
@@ -110,7 +110,8 @@ class ExtractionModel(BaseModel):
     name: str = Field(..., min_length=3, max_length=100, description="Model identifier")
     type: ModelType = Field(..., description="Type of extraction model")
     endpoint: Optional[str] = Field(None, description="API endpoint or resource URI")
-    version: str = Field(..., description="Model version")
+    version: str = Field(..., description="Model version/deployment name")
+    api_version: Optional[str] = Field(None, description="API version for Azure services")
     capabilities: List[str] = Field(default_factory=list, description="Supported capabilities")
     is_active: bool = Field(default=True, description="Whether model is available")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Creation timestamp")
@@ -123,6 +124,7 @@ class ExtractionModel(BaseModel):
                     "type": "vision",
                     "endpoint": "https://hsbc-openai.openai.azure.com/",
                     "version": "gpt-4-vision-preview",
+                    "api_version": "2024-02-15-preview",
                     "capabilities": ["ocr", "structured_extraction", "spatial_understanding"]
                 }
             ]

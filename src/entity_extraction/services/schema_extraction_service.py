@@ -12,9 +12,11 @@ from ..models import (
     ExtractedField,
     ExtractionResult,
     ExtractionStatus,
+    ModelType,
 )
-from ..repositories import ExtractionRepository, SchemaRepository
+from ..repositories import ExtractionRepository, SchemaRepository, ExtractionModelRepository
 from ..adapters.base import ExtractionModelAdapter
+from ..adapters import AzureOpenAIVisionAdapter
 
 
 class SchemaExtractionService:
@@ -24,6 +26,7 @@ class SchemaExtractionService:
         self,
         schema_repo: SchemaRepository,
         extraction_repo: ExtractionRepository,
+        model_repo: ExtractionModelRepository,
         adapters: Optional[Dict[str, ExtractionModelAdapter]] = None
     ):
         """
@@ -32,10 +35,12 @@ class SchemaExtractionService:
         Args:
             schema_repo: Repository for schema access
             extraction_repo: Repository for result storage
+            model_repo: Repository for model registry
             adapters: Dictionary of model adapters (name -> adapter instance)
         """
         self.schema_repo = schema_repo
         self.extraction_repo = extraction_repo
+        self.model_repo = model_repo
         self.adapters = adapters or {}
     
     def register_adapter(self, name: str, adapter: ExtractionModelAdapter):
@@ -106,11 +111,28 @@ class SchemaExtractionService:
                 models[0]
             )
             
-            model_name = primary_model.get("model_name", "azure_gpt4_vision")
-            adapter = self.adapters.get(model_name)
+            # Fetch model from database
+            model_id = UUID(primary_model.get("model_id"))
+            db_model = await self.model_repo.get_model(model_id)
             
-            if not adapter:
-                raise ValueError(f"No adapter registered for model: {model_name}")
+            if not db_model:
+                raise ValueError(f"Model {model_id} not found in registry")
+            
+            if not db_model.is_active:
+                raise ValueError(f"Model {db_model.name} is not active")
+            
+            # Create adapter dynamically based on model type
+            if db_model.type == ModelType.VISION:
+                adapter = AzureOpenAIVisionAdapter(
+                    endpoint=db_model.endpoint,
+                    api_key=None,  # Use Azure AD
+                    deployment=db_model.version,
+                    api_version=db_model.api_version or "2024-02-15-preview"
+                )
+            else:
+                raise ValueError(f"Unsupported model type: {db_model.type}")
+            
+            model_name = db_model.name
             
             # 4. Execute extraction
             field_names = primary_model.get("fields", ["*"])
