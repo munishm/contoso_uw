@@ -1,0 +1,65 @@
+{
+  "PGIP2 Application Form": "HSBC Paramount Global Life Insurance Plan (PGIP2) application forms. Must contain the complete anchor phrase 'HSBC Paramount Global Life Insurance Plan' or the exact token 'PGIP2'. Partial matches are invalid. Continuity precedence applies across multi-page blocks.",
+  
+  "Jade UL Application Form": "Jade UL insurance application documents, including Broker Application, WPB Application, and Corporate Authorisation Form. Requires complete anchor tokens such as 'Jade UL', 'Broker Application', 'WPB Application', or 'Corporate Authorisation Form'.",
+  
+  "Amendment Application Form": "Application amendment documents containing structured changes such as policy amendments, additions, or corrections. Anchor tokens include 'Amendment', 'additions', and 'corrections'.",
+  
+  "Declaration of Continued Insurability (DOC1)": "Declaration of Continued Insurability forms. Must contain the full anchor 'Declaration of Continued Insurability' or the Chinese anchor '持續可保險性聲明書'.",
+  
+  "Confidential Medical Questionnaire (CMQ)": "Confidential Medical Questionnaire documents capturing detailed medical disclosures. Requires the complete anchor 'Confidential Medical Questionnaire' or 'CMQ'.",
+  
+  "Medical Questionnaire": "Other medical declaration or health questionnaire forms completed by applicants, excluding CMQ. Includes health history, family history, and disclosures.",
+  
+  "Lab Report": "Laboratory test reports containing structured laboratory results. Anchors include 'Laboratory Results' or 'Lab Report'.",
+  
+  "ECG Report": "Electrocardiogram (ECG) reports. Identified by structured ECG parameters such as 'Vent rate', 'PR int', 'QRS dur', and standard ECG leads (I, II, III, aVR, aVL, aVF, V1–V6).",
+  
+  "Heart Echo": "Echocardiogram or cardiac ultrasound reports. Anchors include 'Echocardiogram' or 'Heart Echo'.",
+  
+  "MRI Report": "Magnetic Resonance Imaging reports. Anchors include 'Magnetic Resonance' or 'MRI'.",
+  
+  "Ultrasound Report": "Ultrasound diagnostic reports. Anchors include 'Ultrasound Report' or '超聲波'.",
+  
+  "CT Report": "CT scan reports, including cardiac CT. Anchors include 'CT Coronary' or 'Calcium Scoring'.",
+  
+  "Medical Report": "General medical diagnostic reports not falling into specialized imaging categories. Includes physician examination findings and assessments.",
+  
+  "Medical Letter": "Doctor-written narrative correspondence such as referral letters or medical opinions. Identified by 'ref' or lines starting with 'to <name>' (e.g., 'to Dr. Chan').",
+  
+  "Certificate": "Medical certificates such as fitness, disability, sick leave, or certified medical statements.",
+  
+  "Financial Statement / Balance Sheet": "Formal financial statements including balance sheets or profit & loss statements. Requires structured tabular patterns with headings such as 'Assets', 'Liabilities', 'Equity', 'Net profit', or 'Gross profit'. Isolated terms are insufficient.",
+  
+  "Financial Questionnaire": "Financial assessment or affordability forms capturing income, assets, liabilities, net worth, and funding source.",
+  
+  "Invoice": "Medical or insurance invoices with itemized charges and billing details.",
+  
+  "Receipt": "Proof of payment including transaction confirmations and premium receipts.",
+  
+  "Bank Document": "Documents issued by banks such as account statements, banker's letters, financing confirmations, or bank memos.",
+  
+  "Broker Report / Memo": "Broker-prepared reports or advisory memos. Anchors include structured sections such as 'Particulars', 'Background', 'Purpose', and 'Recommendation(s)'. High anchor density and structured layout override application forms per negative override rules.",
+  
+  "ID Document": "Government-issued identity documents such as passports, HKID, PRC ID, or residence permits.",
+  
+  "Entry Proof": "Immigration or travel documents such as visas, entry permits, or arrival slips.",
+  
+  "Corporate Document": "Corporate registration or legal documents including certificates of incorporation, business registration certificates, or partnership agreements.",
+  
+  "Authorization Document": "Corporate or personal authorization documents such as board resolutions, powers of attorney, or representative authorizations.",
+  
+  "Charge / Registration Document": "Documents related to company charges or securities, including registration of charge forms.",
+  
+  "Tax Form": "Tax residency and compliance forms such as FATCA, CRS, and self-certification documents.",
+  
+  "Regulatory Form": "Regulatory or compliance-driven forms required by financial institutions that do not qualify as tax or insurance applications.",
+  
+  "Letter": "Non-medical formal correspondence such as explanations, confirmations, or supporting statements.",
+  
+  "Manual": "User guides, instruction manuals, product brochures, or reference documentation.",
+  
+  "Uncategorized": "Pages where no complete anchor matches exist, conflicting anchors cannot be resolved, or low-text pages fail anchor validation. Must include explanation in ambiguity list.",
+  
+  "Other": "Documents that do not clearly fit any defined category or contain mixed content without dominant structured anchors."
+}
