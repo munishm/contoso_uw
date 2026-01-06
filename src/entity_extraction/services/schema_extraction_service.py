@@ -1,5 +1,6 @@
 """Service for schema-based document extraction."""
 
+import logging
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -17,6 +18,8 @@ from ..models import (
 from ..repositories import ExtractionRepository, SchemaRepository, ExtractionModelRepository
 from ..adapters.base import ExtractionModelAdapter
 from ..adapters import AzureOpenAIVisionAdapter
+
+logger = logging.getLogger(__name__)
 
 
 class SchemaExtractionService:
@@ -69,6 +72,15 @@ class SchemaExtractionService:
         Raises:
             ValueError: If schema not found or invalid
         """
+        logger.info("-" * 50)
+        logger.info("SchemaExtractionService.extract_document()")
+        logger.info("-" * 50)
+        logger.info(f"  document_id: {document_id}")
+        logger.info(f"  document_type_id: {document_type_id}")
+        logger.info(f"  version: {version}")
+        logger.info(f"  content_size: {len(document_content)} bytes")
+        logger.info(f"  registered_adapters: {list(self.adapters.keys())}")
+        
         start_time = time.time()
         
         # Create initial extraction record
@@ -79,30 +91,39 @@ class SchemaExtractionService:
             status=ExtractionStatus.IN_PROGRESS
         )
         extraction = await self.extraction_repo.create_extraction(extraction)
+        logger.info(f"  Created extraction record: {extraction.id}")
         
         try:
             # 1. Look up schema version
+            logger.info(f"  Looking up schema version...")
             schema_version = await self.schema_repo.get_schema_version(
                 document_type_id,
                 version
             )
             if not schema_version:
+                logger.error(f"  ✗ Schema NOT FOUND for document_type_id={document_type_id}, version={version}")
                 raise ValueError(
                     f"Schema not found for document type {document_type_id} version {version}"
                 )
             
+            logger.info(f"  ✓ Found schema: {schema_version.id}")
             extraction.version_id = schema_version.id
             
             # 2. Get document type for context
             document_type = await self.schema_repo.get_document_type(document_type_id)
             if not document_type:
+                logger.error(f"  ✗ Document type {document_type_id} not found")
                 raise ValueError(f"Document type {document_type_id} not found")
+            
+            logger.info(f"  ✓ Document type: {document_type.name}")
             
             # 3. Determine which model(s) to use
             extraction_config = schema_version.extraction_config
             models = extraction_config.get("models", [])
+            logger.info(f"  extraction_config.models: {len(models)} configured")
             
             if not models:
+                logger.error(f"  ✗ No models configured in extraction_config")
                 raise ValueError("No models configured for this schema version")
             
             # For MVP, use first primary model (Phase 4 will add multi-model support)
@@ -110,19 +131,29 @@ class SchemaExtractionService:
                 (m for m in models if m.get("strategy") == "primary"),
                 models[0]
             )
+            logger.info(f"  Primary model config: {primary_model}")
             
             # Fetch model from database
             model_id = UUID(primary_model.get("model_id"))
+            logger.info(f"  Looking up model_id: {model_id}")
             db_model = await self.model_repo.get_model(model_id)
             
             if not db_model:
+                logger.error(f"  ✗ Model {model_id} not found in registry")
                 raise ValueError(f"Model {model_id} not found in registry")
             
+            logger.info(f"  ✓ Found model: {db_model.name}, type={db_model.type}, active={db_model.is_active}")
+            
             if not db_model.is_active:
+                logger.error(f"  ✗ Model {db_model.name} is not active")
                 raise ValueError(f"Model {db_model.name} is not active")
             
             # Create adapter dynamically based on model type
+            logger.info(f"  Creating adapter for model type: {db_model.type}")
             if db_model.type == ModelType.VISION:
+                logger.info(f"    endpoint: {db_model.endpoint}")
+                logger.info(f"    deployment/version: {db_model.version}")
+                logger.info(f"    api_version: {db_model.api_version}")
                 adapter = AzureOpenAIVisionAdapter(
                     endpoint=db_model.endpoint,
                     api_key=None,  # Use Azure AD
@@ -130,18 +161,22 @@ class SchemaExtractionService:
                     api_version=db_model.api_version or "2024-02-15-preview"
                 )
             else:
+                logger.error(f"  ✗ Unsupported model type: {db_model.type}")
                 raise ValueError(f"Unsupported model type: {db_model.type}")
             
             model_name = db_model.name
             
             # 4. Execute extraction
             field_names = primary_model.get("fields", ["*"])
+            logger.info(f"  Calling adapter.extract() with fields: {field_names}")
             raw_results = await adapter.extract(
                 document_content,
                 document_type.name,
                 schema_version,
                 field_names
             )
+            logger.info(f"  ✓ Extraction returned {len(raw_results)} raw fields")
+            logger.info(f"  Raw results: {list(raw_results.keys())}")
             
             extraction.models_used = [model_name]
             

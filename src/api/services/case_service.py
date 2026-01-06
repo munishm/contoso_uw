@@ -7,10 +7,21 @@ Handles case operations including validation, state transitions, and CRUD operat
 from __future__ import annotations
 
 import logging
+import tempfile
+import uuid
+from pathlib import Path
 from datetime import date, datetime, timezone
 from typing import Any, Optional
 
 from src.api.middleware.error_handler import BadRequestError, ConflictError, NotFoundError
+
+# Import workflow orchestration
+from src.orchestration.case_workflow import (
+    workflow_manager,
+    initialize_case_workflow,
+    on_new_case_created as trigger_case_workflow,
+    on_new_case_created_async as trigger_case_workflow_async,
+)
 from src.api.models.case import (
     CaseDetailResponse,
     CaseListResponse,
@@ -142,37 +153,355 @@ class CaseService:
         created = await self.case_repo.create_case(case_data)
         logger.info(f"Case {case_id} created successfully")
 
-        # TODO: Re-enable classification after production deployment
-        # Trigger document classification if a main document was uploaded
-        # if main_document_blob_path and self.classification_service:
-        #     try:
-        #         logger.info(f"Starting document classification for case {case_id}")
-        #         classification_result = await self.classification_service.classify_case_documents(
-        #             case_id=case_id,
-        #             main_document_blob_path=main_document_blob_path,
-        #         )
-        #         logger.info(
-        #             f"Classification completed for case {case_id}: "
-        #             f"{classification_result.get('documents_created', 0)} documents identified"
-        #         )
-        #         
-        #         # Reload case to get updated data after classification
-        #         created = await self.case_repo.get_case(case_id)
-        #     except Exception as e:
-        #         # Log error but don't fail case creation
-        #         logger.error(
-        #             f"Classification failed for case {case_id}: {e}", 
-        #             exc_info=True
-        #         )
-        #         # Update case with classification error
-        #         await self.case_repo.update_case(
-        #             case_id,
-        #             {
-        #                 "processing_status": "failed",
-        #                 "processing_error": str(e),
-        #             }
-        #         )
-        #         created = await self.case_repo.get_case(case_id)
+        # Trigger workflow orchestration if a main document was uploaded
+        if main_document_blob_path and main_document_content:
+            local_temp_path = None
+            workflow_started_at = datetime.now(timezone.utc)
+            
+            # Update case with processing_started_at
+            await self.case_repo.update_case(
+                case_id,
+                {"processing_started_at": workflow_started_at.isoformat(), "processing_status": "processing"},
+                user_id=user_id,
+            )
+            
+            try:
+                logger.info(f"Starting workflow orchestration for case {case_id}")
+                
+                # Save document content to a local temp file for classification
+                # This avoids modifying the document_classifier to handle blob storage
+                ext = Path(main_document_filename).suffix if main_document_filename else ".pdf"
+                with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_file:
+                    temp_file.write(main_document_content)
+                    local_temp_path = temp_file.name
+                
+                logger.info(f"Saved document to temp file: {local_temp_path} ({len(main_document_content)} bytes)")
+                
+                # Initialize workflow if not already done
+                initialize_case_workflow()
+                
+                # Trigger the case processing workflow with LOCAL file path
+                # This will run: classification → file upload → DB prepare → extraction
+                # Note: Using async version to avoid blocking the event loop
+                workflow_result = await trigger_case_workflow_async(
+                    document_path=local_temp_path,  # Pass local file, not blob path
+                    case_id=case_id,
+                    blob_path=main_document_blob_path,  # Pass blob path separately for reference
+                )
+                
+                logger.info(
+                    f"Workflow completed for case {case_id} with status: {workflow_result.get('status')}"
+                )
+                
+                # Update case with workflow results
+                step_results = workflow_result.get('results', {})
+                
+                # ========== DETAILED LOGGING FOR CLASSIFICATION RESULTS ==========
+                classification_result = step_results.get('classification', {})
+                classification_response = classification_result.get('classification_response')
+                documents = classification_result.get('documents', [])
+                pages = classification_result.get('pages', [])
+                
+                logger.info("=" * 60)
+                logger.info(f"CLASSIFICATION RESULTS FOR CASE {case_id}")
+                logger.info("=" * 60)
+                logger.info(f"Total subdocuments identified: {len(documents)}")
+                logger.info(f"Total pages classified: {len(pages) if pages else 0}")
+                
+                # Log each subdocument from classifier
+                for idx, doc in enumerate(documents or []):
+                    doc_type = doc.document_type if hasattr(doc, 'document_type') else doc.get('document_type', 'unknown')
+                    file_path = doc.file_path if hasattr(doc, 'file_path') else doc.get('file_path', 'unknown')
+                    logger.info(f"  Subdocument [{idx + 1}]: type={doc_type}, path={file_path}")
+                
+                # ========== DETAILED LOGGING FOR FILE UPLOAD RESULTS ==========
+                file_upload_result = step_results.get('file_upload', {})
+                uploaded_files = file_upload_result.get('uploaded_files', [])
+                upload_status = file_upload_result.get('upload_status', 'unknown')
+                
+                logger.info("-" * 60)
+                logger.info(f"FILE UPLOAD PREPARED (from workflow)")
+                logger.info("-" * 60)
+                logger.info(f"Upload status: {upload_status}")
+                logger.info(f"Total files prepared for upload: {len(uploaded_files)}")
+                
+                for idx, uploaded in enumerate(uploaded_files):
+                    logger.info(f"  Prepared [{idx + 1}]:")
+                    logger.info(f"    - Document Type: {uploaded.get('document_type')}")
+                    logger.info(f"    - Original Path: {uploaded.get('original_path')}")
+                    logger.info(f"    - Target Blob Path: {uploaded.get('blob_path')}")
+                    logger.info(f"    - Status: {uploaded.get('upload_status')}")
+                
+                # ========== UPLOAD SUB-DOCUMENTS TO BLOB STORAGE ==========
+                # The workflow prepares blob paths; we do actual upload here with StorageService
+                if self.storage_service and uploaded_files:
+                    logger.info("-" * 60)
+                    logger.info("UPLOADING SUB-DOCUMENTS TO BLOB STORAGE")
+                    logger.info("-" * 60)
+                    
+                    for idx, uploaded in enumerate(uploaded_files):
+                        original_path = uploaded.get("original_path")
+                        blob_path = uploaded.get("blob_path")
+                        doc_type = uploaded.get("document_type")
+                        
+                        try:
+                            # Read the local file content
+                            with open(original_path, "rb") as f:
+                                file_content = f.read()
+                            
+                            # Upload to blob storage
+                            await self.storage_service.upload_blob(
+                                blob_path=blob_path,
+                                content=file_content,
+                                content_type="application/pdf",
+                            )
+                            
+                            # Update status in our tracking
+                            uploaded["upload_status"] = "success"
+                            uploaded["size_bytes"] = len(file_content)
+                            logger.info(f"  ✓ Uploaded [{idx + 1}]: {doc_type} -> {blob_path} ({len(file_content)} bytes)")
+                            
+                        except FileNotFoundError:
+                            uploaded["upload_status"] = "failed"
+                            uploaded["error"] = f"File not found: {original_path}"
+                            logger.error(f"  ✗ Failed [{idx + 1}]: File not found: {original_path}")
+                        except Exception as upload_err:
+                            uploaded["upload_status"] = "failed"
+                            uploaded["error"] = str(upload_err)
+                            logger.error(f"  ✗ Failed [{idx + 1}]: {upload_err}")
+                    
+                    successful_uploads = sum(1 for u in uploaded_files if u.get("upload_status") == "success")
+                    logger.info(f"Blob upload complete: {successful_uploads}/{len(uploaded_files)} files uploaded")
+                    logger.info("-" * 60)
+                else:
+                    if not self.storage_service:
+                        logger.warning("StorageService not available - skipping blob upload")
+                    if not uploaded_files:
+                        logger.info("No files to upload to blob storage")
+                
+                # ========== DETAILED LOGGING FOR PREPARED DOCUMENTS ==========
+                # (Note: Workflow now prepares document data; actual DB insert happens below)
+                db_update_result = step_results.get('db_update', {})
+                prepared_documents = db_update_result.get('prepared_documents', [])
+                db_update_status = db_update_result.get('db_update_status', 'unknown')
+                
+                logger.info("-" * 60)
+                logger.info(f"PREPARED DOCUMENT RECORDS (from workflow)")
+                logger.info("-" * 60)
+                logger.info(f"DB update status: {db_update_status}")
+                logger.info(f"Total documents prepared: {len(prepared_documents)}")
+                
+                for idx, record in enumerate(prepared_documents):
+                    logger.info(f"  Prepared Document [{idx + 1}]:")
+                    logger.info(f"    - Document Type: {record.get('document_type')}")
+                    logger.info(f"    - Blob Path: {record.get('blob_path')}")
+                    logger.info(f"    - Filename: {record.get('filename')}")
+                    logger.info(f"    - Page Count: {record.get('page_count')}")
+                    logger.info(f"    - Confidence: {record.get('classification_confidence')}")
+                
+                # ========== EXTRACTION RESULTS ==========
+                extraction_result = step_results.get('extraction', {})
+                extracted_entities = extraction_result.get('extracted_entities', [])
+                
+                logger.info("-" * 60)
+                logger.info(f"EXTRACTION RESULTS")
+                logger.info("-" * 60)
+                logger.info(f"Total entity sets extracted: {len(extracted_entities)}")
+                
+                # Build extraction lookup by document_type for later embedding
+                extraction_by_doc_type: dict[str, dict] = {}
+                for entity_set in extracted_entities:
+                    doc_type = entity_set.get('document_type')
+                    status = entity_set.get('status', 'unknown')
+                    extraction_data = entity_set.get('extraction_result', {})
+                    
+                    logger.info(f"  Entity Set [{doc_type}]: status={status}")
+                    if extraction_data:
+                        fields = extraction_data.get('fields', [])
+                        logger.info(f"    - fields: {len(fields)}")
+                        logger.info(f"    - needs_review: {extraction_data.get('needs_review', False)}")
+                        logger.info(f"    - models_used: {extraction_data.get('models_used', [])}")
+                        logger.info(f"    - processing_time_ms: {extraction_data.get('processing_time_ms', 0)}")
+                    else:
+                        logger.info(f"    - No extraction data (skipped or error)")
+                    
+                    # Store for embedding in document record
+                    extraction_by_doc_type[doc_type] = {
+                        "status": status,
+                        "data": extraction_data if status == "success" else None,
+                        "error": entity_set.get('error'),
+                        "reason": entity_set.get('reason')
+                    }
+                
+                logger.info("=" * 60)
+            
+                documents_count = len(documents)
+                
+                # ========== CREATE DOCUMENT RECORDS IN COSMOS DB ==========
+                # The workflow's db_update step prepares document data but doesn't insert.
+                # We create documents here in the proper async context using the prepared data
+                # or directly from uploaded_files/pages (which have same info).
+                logger.info("-" * 60)
+                logger.info("CREATING DOCUMENT RECORDS IN COSMOS DB")
+                logger.info("-" * 60)
+                
+                created_document_ids = []
+                now = datetime.now(timezone.utc)
+                
+                for idx, uploaded_file in enumerate(uploaded_files):
+                    doc_type = uploaded_file.get("document_type")
+                    blob_path = uploaded_file.get("blob_path")
+                    original_path = uploaded_file.get("original_path")
+                    
+                    # Find page info for this document type
+                    page_numbers = []
+                    confidences = []
+                    for page in pages:
+                        page_doc_type = page.document_type if hasattr(page, 'document_type') else page.get('document_type')
+                        if page_doc_type == doc_type:
+                            page_num = page.page_number if hasattr(page, 'page_number') else page.get('page_number')
+                            conf = page.confidence if hasattr(page, 'confidence') else page.get('confidence')
+                            page_numbers.append(page_num)
+                            if conf:
+                                confidences.append(conf)
+                    
+                    avg_confidence = sum(confidences) / len(confidences) if confidences else None
+                    
+                    # Get file size from upload result (if available)
+                    size_bytes = uploaded_file.get("size_bytes", 0)
+                    
+                    # Generate document ID
+                    document_id = str(uuid.uuid4())
+                    
+                    # Build document record
+                    document_data = {
+                        "id": document_id,
+                        "document_id": document_id,
+                        "case_id": case_id,
+                        "filename": Path(original_path).name if original_path else f"{doc_type}.pdf",
+                        "content_type": "application/pdf",
+                        "size_bytes": size_bytes,
+                        "blob_path": blob_path,
+                        "classification": doc_type,
+                        "classification_confidence": avg_confidence,
+                        "confidence_score": avg_confidence,  # Alias for API response
+                        "processing_status": "completed",
+                        "source": "extracted",  # Mark as extracted from main document
+                        "parent_document_id": None,  # Could link to main doc if tracked
+                        "page_range": f"{min(page_numbers)}-{max(page_numbers)}" if page_numbers else None,
+                        "page_numbers": page_numbers,
+                        "page_count": len(page_numbers),
+                        "blob_upload_status": uploaded_file.get("upload_status", "unknown"),
+                        "metadata": {
+                            "source_document": original_path,
+                            "document_type": doc_type,
+                            "extraction_method": "classification_split",
+                        },
+                        "created_at": now.isoformat(),
+                        "updated_at": now.isoformat(),
+                        "created_by": user_id,
+                        # Processing timestamps
+                        "processing_started_at": workflow_started_at.isoformat(),
+                        "processing_completed_at": now.isoformat(),
+                        "processing_error": None,
+                    }
+                    
+                    # ========== EMBED EXTRACTION RESULTS ==========
+                    # If extraction was performed for this document type, embed the results
+                    extraction_info = extraction_by_doc_type.get(doc_type)
+                    if extraction_info and extraction_info.get("status") == "success" and extraction_info.get("data"):
+                        ext_data = extraction_info["data"]
+                        document_data["extraction"] = {
+                            "extraction_id": ext_data.get("extraction_id"),
+                            "status": ext_data.get("status", "completed"),
+                            "fields": ext_data.get("fields", []),
+                            "needs_review": ext_data.get("needs_review", False),
+                            "models_used": ext_data.get("models_used", []),
+                            "processing_time_ms": ext_data.get("processing_time_ms", 0),
+                            "error_message": ext_data.get("error_message"),
+                            "extraction_completed_at": now.isoformat(),
+                        }
+                        logger.info(f"    Embedded extraction: {len(ext_data.get('fields', []))} fields, needs_review={ext_data.get('needs_review', False)}")
+                    elif extraction_info:
+                        # Extraction was attempted but failed/skipped
+                        document_data["extraction"] = {
+                            "extraction_id": None,
+                            "status": extraction_info.get("status", "skipped"),
+                            "fields": [],
+                            "needs_review": False,
+                            "models_used": [],
+                            "processing_time_ms": 0,
+                            "error_message": extraction_info.get("error") or extraction_info.get("reason"),
+                            "extraction_completed_at": now.isoformat(),
+                        }
+                        logger.info(f"    Extraction {extraction_info.get('status')}: {extraction_info.get('reason') or extraction_info.get('error')}")
+                    else:
+                        # No extraction attempted for this document type
+                        document_data["extraction"] = None
+                    
+                    try:
+                        created_doc = await self.document_repo.create_document(document_data)
+                        created_document_ids.append(document_id)
+                        logger.info(f"  ✓ Created document [{idx + 1}]: {document_id} ({doc_type})")
+                    except Exception as doc_err:
+                        logger.error(f"  ✗ Failed to create document record: {doc_err}")
+                
+                logger.info(f"Total documents created: {len(created_document_ids)}")
+                logger.info("-" * 60)
+                
+                # Update case: processing status + case status transition to IN_REVIEW
+                
+                # Build status history entry for status transition
+                current_case = await self.case_repo.get_case(case_id)
+                status_history = current_case.get("status_history", [])
+                status_history.append({
+                    "previous_status": CaseStatus.DRAFT.value,
+                    "new_status": CaseStatus.IN_REVIEW.value,
+                    "changed_by": "workflow_system",
+                    "changed_at": now.isoformat(),
+                    "reason": "Workflow completed - documents classified and processed",
+                })
+                
+                await self.case_repo.update_case(
+                    case_id,
+                    {
+                        "status": CaseStatus.IN_REVIEW.value,  # Transition from DRAFT to IN_REVIEW
+                        "processing_status": workflow_result.get('status', 'completed'),
+                        "processing_completed_at": now.isoformat(),
+                        "total_documents_expected": documents_count,
+                        "documents_processed_count": documents_count,
+                        "status_history": status_history,
+                    },
+                    user_id=user_id,
+                )
+                
+                # Reload case to get updated data after workflow
+                created = await self.case_repo.get_case(case_id)
+                
+            except Exception as e:
+                # Log error but don't fail case creation
+                logger.error(
+                    f"Workflow failed for case {case_id}: {e}", 
+                    exc_info=True
+                )
+                # Update case with workflow error
+                await self.case_repo.update_case(
+                    case_id,
+                    {
+                        "processing_status": "failed",
+                        "processing_error": str(e),
+                    },
+                    user_id=user_id,
+                )
+                created = await self.case_repo.get_case(case_id)
+            finally:
+                # Clean up temp file
+                if local_temp_path:
+                    try:
+                        Path(local_temp_path).unlink(missing_ok=True)
+                        logger.debug(f"Cleaned up temp file: {local_temp_path}")
+                    except Exception as cleanup_err:
+                        logger.warning(f"Failed to clean up temp file {local_temp_path}: {cleanup_err}")
 
         # Load documents for the case (may have been created during classification)
         documents = await self.document_repo.list_documents_for_case(case_id)
@@ -689,15 +1018,6 @@ class CaseService:
                     DocumentSummaryInCase(
                         document_id=doc["document_id"],
                         filename=doc["filename"],
-                        content_type=doc["content_type"],
-                        size_bytes=doc["size_bytes"],
-                        processing_status=doc.get("processing_status", "pending"),
-                        classification=doc.get("classification"),
-                        source=doc.get("source"),
-                        parent_document_id=doc.get("parent_document_id"),
-                        page_range=doc.get("page_range"),
-                        summary=doc.get("summary"),
-                        created_at=datetime.fromisoformat(doc["created_at"]),
                     )
                 )
 

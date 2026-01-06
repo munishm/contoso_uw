@@ -55,6 +55,35 @@ class SchemaRepository:
         except exceptions.CosmosResourceNotFoundError:
             return None
     
+    async def get_document_type_by_name(self, name: str) -> Optional[DocumentType]:
+        """
+        Get document type by name (case-insensitive).
+        
+        Args:
+            name: Document type name (e.g., "Lab Report", "Application Form")
+            
+        Returns:
+            DocumentType if found, None otherwise
+        """
+        # Query by name - using LOWER for case-insensitive match
+        query = """
+            SELECT * FROM c 
+            WHERE c.type = 'document_type' 
+            AND (LOWER(c.name) = LOWER(@name) OR c.name = @name)
+            AND c.is_active = true
+        """
+        parameters = [
+            {"name": "@name", "value": name}
+        ]
+        
+        items = list(self.schema_container.query_items(
+            query=query,
+            parameters=parameters,
+            enable_cross_partition_query=True
+        ))
+        
+        return DocumentType.model_validate(items[0]) if items else None
+
     async def list_document_types(self, active_only: bool = True) -> List[DocumentType]:
         """List all document types."""
         query = "SELECT * FROM c WHERE c.type = 'document_type'"

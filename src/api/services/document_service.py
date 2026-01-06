@@ -191,7 +191,7 @@ class DocumentService:
         Raises:
             NotFoundError: If document not found
         """
-        document = await self.document_repo.get_document(document_id)
+        document = await self.document_repo.get_document(document_id, case_id)
         if not document or document.get("case_id") != case_id:
             raise NotFoundError(f"Document {document_id} not found in case {case_id}")
 
@@ -219,7 +219,7 @@ class DocumentService:
         Raises:
             NotFoundError: If document not found
         """
-        document = await self.document_repo.get_document(document_id)
+        document = await self.document_repo.get_document(document_id, case_id)
         if not document or document.get("case_id") != case_id:
             raise NotFoundError(f"Document {document_id} not found in case {case_id}")
 
@@ -253,7 +253,7 @@ class DocumentService:
         Raises:
             NotFoundError: If document not found
         """
-        document = await self.document_repo.get_document(document_id)
+        document = await self.document_repo.get_document(document_id, case_id)
         if not document or document.get("case_id") != case_id:
             raise NotFoundError(f"Document {document_id} not found in case {case_id}")
 
@@ -313,7 +313,7 @@ class DocumentService:
         Raises:
             NotFoundError: If document not found
         """
-        document = await self.document_repo.get_document(document_id)
+        document = await self.document_repo.get_document(document_id, case_id)
         if not document or document.get("case_id") != case_id:
             raise NotFoundError(f"Document {document_id} not found in case {case_id}")
 
@@ -350,7 +350,7 @@ class DocumentService:
         Raises:
             NotFoundError: If document not found
         """
-        document = await self.document_repo.get_document(document_id)
+        document = await self.document_repo.get_document(document_id, case_id)
         if not document or document.get("case_id") != case_id:
             raise NotFoundError(f"Document {document_id} not found in case {case_id}")
 
@@ -380,6 +380,61 @@ class DocumentService:
 
     def _to_detail_response(self, document: dict[str, Any]) -> DocumentDetailResponse:
         """Convert document data to detail response."""
+        # Parse extraction data if present
+        extraction_data = document.get("extraction")
+        extraction_response = None
+        if extraction_data:
+            from src.api.models.document import (
+                DocumentExtractionResult,
+                ExtractedFieldResult,
+                ExtractionCitation,
+                ExtractionBoundingBox,
+            )
+            
+            # Parse fields
+            fields = []
+            for field_data in extraction_data.get("fields", []):
+                citations = []
+                for cit in field_data.get("citations", []):
+                    bbox = None
+                    if cit.get("bbox"):
+                        bbox = ExtractionBoundingBox(
+                            x=cit["bbox"].get("x", 0),
+                            y=cit["bbox"].get("y", 0),
+                            width=cit["bbox"].get("width", 0),
+                            height=cit["bbox"].get("height", 0),
+                        )
+                    citations.append(ExtractionCitation(
+                        type=cit.get("type", "page"),
+                        page=cit.get("page", 1),
+                        bbox=bbox,
+                        text_snippet=cit.get("text") or cit.get("text_snippet"),
+                    ))
+                
+                fields.append(ExtractedFieldResult(
+                    field_name=field_data.get("name") or field_data.get("field_name", ""),
+                    value=field_data.get("value"),
+                    confidence=field_data.get("confidence", 0.0),
+                    citations=citations,
+                    needs_review=field_data.get("needs_review", False),
+                    review_reason=field_data.get("review_reason"),
+                ))
+            
+            extraction_response = DocumentExtractionResult(
+                extraction_id=extraction_data.get("extraction_id"),
+                status=extraction_data.get("status", "pending"),
+                models_used=extraction_data.get("models_used", []),
+                fields=fields,
+                processing_duration_ms=extraction_data.get("processing_time_ms"),
+                error_message=extraction_data.get("error_message"),
+                needs_review=extraction_data.get("needs_review", False),
+                extraction_completed_at=(
+                    datetime.fromisoformat(extraction_data["extraction_completed_at"])
+                    if extraction_data.get("extraction_completed_at")
+                    else None
+                ),
+            )
+        
         return DocumentDetailResponse(
             document_id=document["document_id"],
             case_id=document["case_id"],
@@ -388,12 +443,8 @@ class DocumentService:
             size_bytes=document["size_bytes"],
             blob_path=document["blob_path"],
             processing_status=ProcessingStatus(document["processing_status"]),
-            classification=(
-                DocumentType(document["classification"])
-                if document.get("classification")
-                else None
-            ),
-            confidence_score=document.get("confidence_score"),
+            classification=document.get("classification"),  # Pass as string directly
+            confidence_score=document.get("confidence_score") or document.get("classification_confidence"),
             extracted_text=document.get("extracted_text"),
             summary=document.get("summary"),
             metadata=document.get("metadata", {}),
@@ -411,10 +462,22 @@ class DocumentService:
                 else None
             ),
             processing_error=document.get("processing_error"),
+            extraction=extraction_response,
         )
 
     def _to_summary_response(self, document: dict[str, Any]) -> DocumentSummaryResponse:
         """Convert document data to summary response."""
+        # Check extraction status for summary
+        extraction_data = document.get("extraction")
+        has_extraction = bool(
+            extraction_data 
+            and extraction_data.get("status") in ("completed", "review_required")
+            and extraction_data.get("fields")
+        )
+        extraction_needs_review = bool(
+            extraction_data and extraction_data.get("needs_review")
+        )
+        
         return DocumentSummaryResponse(
             document_id=document["document_id"],
             case_id=document["case_id"],
@@ -422,11 +485,9 @@ class DocumentService:
             content_type=document["content_type"],
             size_bytes=document["size_bytes"],
             processing_status=ProcessingStatus(document["processing_status"]),
-            classification=(
-                DocumentType(document["classification"])
-                if document.get("classification")
-                else None
-            ),
+            classification=document.get("classification"),  # Pass as string directly
+            has_extraction=has_extraction,
+            extraction_needs_review=extraction_needs_review,
             created_at=datetime.fromisoformat(document["created_at"]),
             updated_at=datetime.fromisoformat(document["updated_at"]),
         )

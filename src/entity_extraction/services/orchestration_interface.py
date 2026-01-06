@@ -1,31 +1,34 @@
 """Interface for orchestration workflow integration."""
 
-from typing import Any, Dict, Optional
+import logging
+from typing import Any, Dict, Optional, List
 from uuid import UUID
 
 from ..config import get_config, get_cosmos_client
-from ..repositories import ExtractionRepository, SchemaRepository
-from ..adapters.azure_openai_vision import AzureOpenAIVisionAdapter
+from ..repositories import ExtractionRepository, SchemaRepository, ExtractionModelRepository
 from ..services.schema_extraction_service import SchemaExtractionService
 from ..models import ExtractionResult
+
+logger = logging.getLogger(__name__)
 
 
 async def extract_document_for_workflow(
     document_id: str,
     document_content: bytes,
-    document_type_id: str,
-    schema_version: str = "latest"
+    document_type: str,
+    schema_version: str = "1.0.0"
 ) -> Dict[str, Any]:
     """
     Extract structured data from a document for orchestration workflows.
     
     This is the main entry point for orchestration integration.
+    Accepts document type as either a NAME (e.g., "Lab Report") or UUID string.
     
     Args:
         document_id: Unique document identifier
         document_content: Raw document bytes (PDF, image, etc.)
-        document_type_id: Document type UUID as string
-        schema_version: Schema version to use (default: "latest")
+        document_type: Document type NAME (e.g., "Lab Report") or UUID string
+        schema_version: Schema version to use (default: "1.0.0")
     
     Returns:
         Dictionary with extraction results:
@@ -39,11 +42,20 @@ async def extract_document_for_workflow(
     
     Example:
         ```python
+        # Using document type name (from classification)
         result = await extract_document_for_workflow(
             document_id="doc-123",
             document_content=pdf_bytes,
-            document_type_id="550e8400-e29b-41d4-a716-446655440000",
-            schema_version="2.0.0"
+            document_type="Lab Report",
+            schema_version="1.0.0"
+        )
+        
+        # Using document type UUID
+        result = await extract_document_for_workflow(
+            document_id="doc-123",
+            document_content=pdf_bytes,
+            document_type="550e8400-e29b-41d4-a716-446655440000",
+            schema_version="1.0.0"
         )
         
         if result["needs_review"]:
@@ -54,38 +66,146 @@ async def extract_document_for_workflow(
             pass
         ```
     """
+    logger.info("=" * 60)
+    logger.info("ORCHESTRATION INTERFACE: extract_document_for_workflow")
+    logger.info("=" * 60)
+    logger.info(f"  document_id: {document_id}")
+    logger.info(f"  document_type: {document_type}")
+    logger.info(f"  schema_version: {schema_version}")
+    logger.info(f"  content_size: {len(document_content)} bytes")
+    
     # Initialize services
     config = get_config()
     cosmos_client = get_cosmos_client()
     database = cosmos_client.get_database_client(config.cosmos_database)
     
+    logger.info(f"  cosmos_database: {config.cosmos_database}")
+    
     schema_repo = SchemaRepository(database)
     extraction_repo = ExtractionRepository(database)
+    model_repo = ExtractionModelRepository(database)
     
-    # Initialize extraction service with GPT-4 Vision adapter
+    # Resolve document type - could be UUID or name
+    logger.info(f"  Resolving document type '{document_type}'...")
+    document_type_id = await _resolve_document_type(schema_repo, document_type)
+    
+    if not document_type_id:
+        # Document type not found - return placeholder
+        logger.warning(f"  ✗ Document type '{document_type}' NOT FOUND in schemas container")
+        logger.warning(f"    Extraction SKIPPED - document type not registered")
+        return {
+            "extraction_id": None,
+            "document_id": document_id,
+            "document_type": document_type,
+            "status": "skipped",
+            "message": f"Document type '{document_type}' not registered for extraction",
+            "fields": [],
+            "needs_review": False,
+            "models_used": [],
+            "processing_time_ms": 0,
+            "error_message": None
+        }
+    
+    logger.info(f"  ✓ Resolved document_type_id: {document_type_id}")
+    
+    # Initialize extraction service with model repository
+    # Note: The adapter will be created dynamically by the extraction service
+    # using the model configuration from the database (models container)
     extraction_service = SchemaExtractionService(
         schema_repo=schema_repo,
-        extraction_repo=extraction_repo
+        extraction_repo=extraction_repo,
+        model_repo=model_repo
     )
     
-    # Register GPT-4 Vision adapter
-    vision_adapter = AzureOpenAIVisionAdapter(
-        endpoint=config.openai_endpoint,
-        api_key=config.openai_key,
-        deployment=config.openai_deployment_gpt4_vision
-    )
-    extraction_service.register_adapter("azure_gpt4_vision", vision_adapter)
+    try:
+        # Perform extraction
+        logger.info(f"  Calling extraction_service.extract_document()...")
+        logger.info(f"    document_id: {document_id}")
+        logger.info(f"    document_type_id: {document_type_id}")
+        logger.info(f"    version: {schema_version}")
+        
+        extraction_result = await extraction_service.extract_document(
+            document_id=document_id,
+            document_content=document_content,
+            document_type_id=document_type_id,
+            version=schema_version
+        )
+        
+        logger.info(f"  ✓ Extraction completed")
+        logger.info(f"    status: {extraction_result.status}")
+        logger.info(f"    fields: {len(extraction_result.fields)}")
+        logger.info(f"    models_used: {extraction_result.models_used}")
+        logger.info(f"    processing_time_ms: {extraction_result.processing_duration_ms}")
+        
+        if extraction_result.error_message:
+            logger.error(f"    error_message: {extraction_result.error_message}")
+        
+        # Convert to workflow-friendly format
+        result = _format_for_workflow(extraction_result)
+        logger.info(f"  Returning {len(result.get('fields', []))} fields to workflow")
+        logger.info("=" * 60)
+        return result
+        
+    except ValueError as e:
+        # Schema not found or configuration error
+        logger.error(f"  ✗ Extraction ValueError: {e}")
+        return {
+            "extraction_id": None,
+            "document_id": document_id,
+            "document_type": document_type,
+            "status": "error",
+            "message": str(e),
+            "fields": [],
+            "needs_review": False,
+            "models_used": [],
+            "processing_time_ms": 0,
+            "error_message": str(e)
+        }
+    except Exception as e:
+        logger.error(f"  ✗ Extraction Exception: {type(e).__name__}: {e}")
+        import traceback
+        logger.error(f"    Traceback: {traceback.format_exc()}")
+        return {
+            "extraction_id": None,
+            "document_id": document_id,
+            "document_type": document_type,
+            "status": "error",
+            "message": str(e),
+            "fields": [],
+            "needs_review": False,
+            "models_used": [],
+            "processing_time_ms": 0,
+            "error_message": str(e)
+        }
+
+
+async def _resolve_document_type(schema_repo: SchemaRepository, document_type: str) -> Optional[UUID]:
+    """
+    Resolve document type to UUID.
     
-    # Perform extraction
-    extraction_result = await extraction_service.extract_document(
-        document_id=document_id,
-        document_content=document_content,
-        document_type_id=UUID(document_type_id),
-        version=schema_version
-    )
+    Args:
+        schema_repo: Schema repository instance
+        document_type: Document type NAME or UUID string
     
-    # Convert to workflow-friendly format
-    return _format_for_workflow(extraction_result)
+    Returns:
+        UUID if found, None otherwise
+    """
+    # Try to parse as UUID first
+    try:
+        uuid_val = UUID(document_type)
+        logger.info(f"    document_type is already a UUID: {uuid_val}")
+        return uuid_val
+    except ValueError:
+        pass
+    
+    # Look up by name
+    logger.info(f"    Looking up document type by name: '{document_type}'")
+    doc_type = await schema_repo.get_document_type_by_name(document_type)
+    if doc_type:
+        logger.info(f"    ✓ Found document type: id={doc_type.id}, name={doc_type.name}")
+    else:
+        logger.warning(f"    ✗ Document type '{document_type}' not found in database")
+    return doc_type.id if doc_type else None
 
 
 def _format_for_workflow(extraction: ExtractionResult) -> Dict[str, Any]:

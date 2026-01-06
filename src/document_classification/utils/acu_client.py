@@ -64,12 +64,22 @@ class AzureContentUnderstandingClient:
     def _raise_for_status_with_detail(self, response: requests.Response):
         """Raise detailed error for failed requests."""
         if not response.ok:
+            error_message = f"HTTP {response.status_code}"
             try:
                 error_detail = response.json()
                 self._logger.error(f"HTTP {response.status_code}: {error_detail}")
+                # Extract more specific error message if available
+                if isinstance(error_detail, dict):
+                    error_message = error_detail.get('error', {}).get('message', str(error_detail))
             except:
+                error_message = response.text
                 self._logger.error(f"HTTP {response.status_code}: {response.text}")
-            response.raise_for_status()
+            
+            # Raise with detailed message
+            raise requests.exceptions.HTTPError(
+                f"{response.status_code} Error: {error_message} for url: {response.url}",
+                response=response
+            )
 
     def check_analyzer_exists(self, analyzer_id: str) -> bool:
         """
@@ -117,11 +127,18 @@ class AzureContentUnderstandingClient:
 
         url = f"{self._endpoint}/contentunderstanding/analyzers/{classifier_id}?api-version={self._api_version}"
         
+        self._logger.info(f"Creating classifier at: {url}")
+        self._logger.debug(f"Classifier schema: {classifier_schema}")
+        
         response = requests.put(
             url=url,
             headers=headers,
             json=classifier_schema,
         )
+        
+        if not response.ok:
+            self._logger.error(f"Classifier creation failed - Request body: {classifier_schema}")
+            
         self._raise_for_status_with_detail(response)
         self._logger.info(f"Classifier {classifier_id} creation request accepted.")
         return response

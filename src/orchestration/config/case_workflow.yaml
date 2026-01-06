@@ -1,0 +1,100 @@
+# Case Processing Workflow Configuration
+# This file defines the workflow steps for processing new cases.
+# Steps can be enabled/disabled, reordered, or have new steps added.
+
+name: case_processing
+version: "1.0.0"
+description: "Case processing workflow: classification → file upload → DB update → extraction"
+
+metadata:
+  created_by: hsbc_case_workflow
+  purpose: insurance_underwriting
+  environment: production
+
+steps:
+  # Step 1: Document Classification
+  # Classifies documents and returns array of documents with page numbers and metadata
+  - name: classification
+    type: classification
+    component: classifier
+    inputs:
+      document: null  # Will be provided at runtime
+    outputs:
+      - classification_response
+      - documents
+      - pages
+      - total_pages
+      - total_segments
+    enabled: true
+    skip_on_error: false
+    retry_count: 2
+    timeout_seconds: 300
+    config:
+      confidence_threshold: 0.8
+
+  # Step 2: File Upload to Blob Storage
+  # Uploads classified document files to Azure Blob Storage
+  - name: file_upload
+    type: file_upload
+    component: file_upload
+    inputs:
+      classification_response: null
+      documents: null
+    outputs:
+      - uploaded_files
+    enabled: true
+    skip_on_error: false
+    retry_count: 3
+    timeout_seconds: 120
+    config:
+      container_name: documents
+      overwrite: true
+
+  # Step 3: Database Update
+  # Updates database with document metadata and blob paths
+  - name: db_update
+    type: db_update
+    component: db_update
+    inputs:
+      uploaded_files: null
+      classification_response: null
+      case_id: null
+    outputs:
+      - db_records
+      - db_update_status
+    enabled: true
+    skip_on_error: false
+    retry_count: 2
+    timeout_seconds: 60
+
+  # Step 4: Entity Extraction
+  # Extracts entities from classified documents
+  - name: extraction
+    type: extraction
+    component: extractor
+    inputs:
+      classification_response: null
+      documents: null
+    outputs:
+      - extracted_entities
+      - extraction_status
+    enabled: true
+    skip_on_error: false
+    retry_count: 2
+    timeout_seconds: 600
+    config:
+      extract_all_entities: true
+
+# Optional: Add summarization step
+# Uncomment to enable document summarization
+#  - name: summarization
+#    type: summarization
+#    component: summarizer
+#    inputs:
+#      classification_response: null
+#      extracted_entities: null
+#    outputs:
+#      - summary
+#      - key_points
+#    enabled: false
+#    skip_on_error: true

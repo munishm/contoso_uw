@@ -35,7 +35,7 @@ class Config:
     # Azure Content Understanding
     CU_ENDPOINT = os.getenv("CU_ENDPOINT")
     AZURE_TENANT_ID = os.getenv("AZURE_TENANT_ID")
-    CU_API_VERSION = "2025-11-01"
+    CU_API_VERSION = os.getenv("CU_API_VERSION", "2024-12-01-preview")
     
     # Classifier settings
     CLASSIFIER_ID = "hsbc_insurance_classifier_v3"

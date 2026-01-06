@@ -92,22 +92,35 @@ class DirectDocumentClassifier:
             }
         }
         
-        # Create the classifier
-        response = self.client.begin_create_classifier(
-            classifier_id=self._classifier_id,
-            classifier_schema=classifier_template
-        )
-        
-        logger.info("Waiting for classifier creation to complete...")
-        result = self.client.poll_result(response)
-        logger.info(f"Classifier '{self._classifier_id}' created successfully")
-        
-        self._classifier_info = {
-            'classifier_id': self._classifier_id,
-            'categories': list(self.config.DOCUMENT_CATEGORIES.keys()),
-            'segmentation_enabled': True,
-            'status': 'created'
-        }
+        try:
+            # Create the classifier
+            response = self.client.begin_create_classifier(
+                classifier_id=self._classifier_id,
+                classifier_schema=classifier_template
+            )
+            
+            logger.info("Waiting for classifier creation to complete...")
+            result = self.client.poll_result(response)
+            logger.info(f"Classifier '{self._classifier_id}' created successfully")
+            
+            self._classifier_info = {
+                'classifier_id': self._classifier_id,
+                'categories': list(self.config.DOCUMENT_CATEGORIES.keys()),
+                'segmentation_enabled': True,
+                'status': 'created'
+            }
+        except Exception as e:
+            logger.warning(f"Failed to create classifier: {e}")
+            logger.info("Attempting to use classifier anyway (may already exist with different schema)")
+            
+            # Try to use the classifier anyway - it might exist with a different schema
+            # or was created by another process
+            self._classifier_info = {
+                'classifier_id': self._classifier_id,
+                'categories': list(self.config.DOCUMENT_CATEGORIES.keys()),
+                'segmentation_enabled': True,
+                'status': 'assumed_existing'
+            }
         
         return self._classifier_info
     

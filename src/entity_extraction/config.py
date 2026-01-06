@@ -22,13 +22,13 @@ class ExtractionConfig(BaseSettings):
     # Cosmos DB settings
     cosmos_endpoint: str
     cosmos_key: Optional[str] = None
-    cosmos_database: str = "extraction_db"
+    cosmos_database: str = "underwriting"
     cosmos_container_schemas: str = "extraction_schemas"
     cosmos_container_models: str = "extraction_models"
-    cosmos_container_results: str = "extraction_results"
+    cosmos_container_results: str = "entities"  # Using entities container for extraction results
     
-    # Azure OpenAI settings
-    openai_endpoint: str
+    # Azure OpenAI settings (optional - models from DB are preferred)
+    openai_endpoint: Optional[str] = None
     openai_key: Optional[str] = None
     openai_api_version: str = "2024-02-15-preview"
     openai_deployment_gpt4_vision: str = "gpt-4-vision"

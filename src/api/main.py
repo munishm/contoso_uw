@@ -23,12 +23,28 @@ from .services.storage_service import storage_service
 
 # Configure logging
 settings = get_settings()
-log_level = logging.DEBUG if settings.debug or settings.app_env == "development" else logging.INFO
+
+# Use LOG_LEVEL from settings (defaults to INFO, can be set via env var)
+log_level_name = settings.log_level.upper()
+log_level = getattr(logging, log_level_name, logging.INFO)
+
 logging.basicConfig(
     level=log_level,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+# Configure application module logging levels
+# Set to WARNING to suppress debug/info logs, or use LOG_LEVEL for all
+app_log_level = log_level if log_level_name == "DEBUG" else logging.INFO
+
+# Suppress verbose logging from application modules (use LOG_LEVEL=DEBUG to enable)
+logging.getLogger("src.orchestration").setLevel(app_log_level)
+logging.getLogger("src.api.services").setLevel(app_log_level)
+logging.getLogger("src.entity_extraction").setLevel(app_log_level)
+logging.getLogger("src.document_classification").setLevel(app_log_level)
+logging.getLogger("src.interfaces").setLevel(app_log_level)
+logging.getLogger("src.api.repositories").setLevel(app_log_level)
 
 # Reduce Azure SDK logging verbosity
 logging.getLogger("azure").setLevel(logging.WARNING)

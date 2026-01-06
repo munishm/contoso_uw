@@ -92,8 +92,6 @@ class WorkflowOrchestrator:
         
         try:
             for step in workflow:
-                print(f"Executing step: {step.name}")
-                
                 # Get component from registry
                 if not registry.has_component(step.component):
                     raise RuntimeError(f"Component not found: {step.component}")
@@ -132,8 +130,6 @@ class WorkflowOrchestrator:
                     if not step.skip_on_error:
                         self._status = WorkflowStatus.FAILED
                         raise RuntimeError(f"Step {step.name} failed: {e}")
-                    
-                    print(f"Step {step.name} failed but continuing: {e}")
             
             self._status = WorkflowStatus.COMPLETED
             return self._results

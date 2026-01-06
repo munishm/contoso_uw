@@ -78,25 +78,10 @@ class CaseSummaryResponse(BaseModel):
 
 
 class DocumentSummaryInCase(BaseModel):
-    """Document summary for case detail response."""
+    """Minimal document summary for case detail response."""
 
     document_id: str = Field(..., description="Document identifier")
     filename: str = Field(..., description="Original filename")
-    content_type: str = Field(..., description="MIME type")
-    size_bytes: int = Field(..., description="File size in bytes")
-    processing_status: str = Field(..., description="Processing status")
-    classification: Optional[str] = Field(default=None, description="Document type")
-    source: Optional[str] = Field(
-        default=None, description="Document source (main_upload, extracted, manual_upload)"
-    )
-    parent_document_id: Optional[str] = Field(
-        default=None, description="Parent document ID if extracted from main document"
-    )
-    page_range: Optional[str] = Field(
-        default=None, description="Page range in parent document (e.g., '1-5')"
-    )
-    summary: Optional[str] = Field(default=None, description="Document summary")
-    created_at: datetime = Field(..., description="Upload timestamp")
 
 
 class CaseDetailResponse(BaseModel):
