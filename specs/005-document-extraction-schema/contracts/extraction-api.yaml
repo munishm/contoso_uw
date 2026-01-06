@@ -1,0 +1,955 @@
+openapi: 3.0.3
+info:
+  title: Document Extraction Schema API
+  description: |
+    API for managing document type schemas, extraction models, and schema-based
+    document extraction with citations.
+    
+    ## Overview
+    This API enables:
+    - Registration and versioning of document type schemas
+    - Configuration of extraction models and pipelines
+    - Schema-based document extraction with source citations
+    - Human review workflows for low-confidence extractions
+    
+    ## Authentication
+    All endpoints require Bearer token authentication via Azure AD.
+  version: 1.0.0
+  contact:
+    name: HSBC Underwriting Platform Team
+
+servers:
+  - url: /api/v1
+    description: API v1
+
+tags:
+  - name: Document Types
+    description: Manage document type definitions
+  - name: Schema Versions
+    description: Manage document type schema versions
+  - name: Extraction Models
+    description: Manage extraction model registry
+  - name: Extraction
+    description: Execute and manage extractions
+
+paths:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Document Types
+  # ─────────────────────────────────────────────────────────────────────────────
+  /document-types:
+    get:
+      tags: [Document Types]
+      summary: List all document types
+      operationId: listDocumentTypes
+      parameters:
+        - name: include_inactive
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Include inactive document types
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: List of document types
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentTypeListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Document Types]
+      summary: Create a new document type
+      operationId: createDocumentType
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentTypeCreateRequest'
+      responses:
+        '201':
+          description: Document type created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentTypeResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Document type with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /document-types/{document_type_id}:
+    parameters:
+      - $ref: '#/components/parameters/DocumentTypeId'
+    
+    get:
+      tags: [Document Types]
+      summary: Get document type details
+      operationId: getDocumentType
+      responses:
+        '200':
+          description: Document type details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentTypeResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Document Types]
+      summary: Update document type
+      operationId: updateDocumentType
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentTypeUpdateRequest'
+      responses:
+        '200':
+          description: Document type updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentTypeResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Document Types]
+      summary: Deactivate document type (soft delete)
+      operationId: deleteDocumentType
+      responses:
+        '204':
+          description: Document type deactivated
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Schema Versions
+  # ─────────────────────────────────────────────────────────────────────────────
+  /document-types/{document_type_id}/versions:
+    parameters:
+      - $ref: '#/components/parameters/DocumentTypeId'
+    
+    get:
+      tags: [Schema Versions]
+      summary: List all versions of a document type
+      operationId: listSchemaVersions
+      parameters:
+        - name: include_inactive
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: List of schema versions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaVersionListResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      tags: [Schema Versions]
+      summary: Create a new schema version
+      operationId: createSchemaVersion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SchemaVersionCreateRequest'
+      responses:
+        '201':
+          description: Schema version created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaVersionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Version already exists for this document type
+
+  /document-types/{document_type_id}/versions/{version}:
+    parameters:
+      - $ref: '#/components/parameters/DocumentTypeId'
+      - $ref: '#/components/parameters/Version'
+    
+    get:
+      tags: [Schema Versions]
+      summary: Get schema version details
+      operationId: getSchemaVersion
+      responses:
+        '200':
+          description: Schema version details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaVersionResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Schema Versions]
+      summary: Update schema version (limited fields)
+      operationId: updateSchemaVersion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SchemaVersionUpdateRequest'
+      responses:
+        '200':
+          description: Schema version updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaVersionResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /document-types/{document_type_id}/versions/{version}/validate:
+    parameters:
+      - $ref: '#/components/parameters/DocumentTypeId'
+      - $ref: '#/components/parameters/Version'
+    
+    post:
+      tags: [Schema Versions]
+      summary: Validate extraction output against schema
+      operationId: validateAgainstSchema
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Extraction output to validate
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResult'
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Extraction Models
+  # ─────────────────────────────────────────────────────────────────────────────
+  /extraction-models:
+    get:
+      tags: [Extraction Models]
+      summary: List registered extraction models
+      operationId: listExtractionModels
+      parameters:
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/ModelType'
+          description: Filter by model type
+        - name: include_inactive
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: List of extraction models
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractionModelListResponse'
+
+    post:
+      tags: [Extraction Models]
+      summary: Register a new extraction model
+      operationId: createExtractionModel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtractionModelCreateRequest'
+      responses:
+        '201':
+          description: Model registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractionModelResponse'
+
+  /extraction-models/{model_id}:
+    parameters:
+      - name: model_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    
+    get:
+      tags: [Extraction Models]
+      summary: Get extraction model details
+      operationId: getExtractionModel
+      responses:
+        '200':
+          description: Model details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractionModelResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Extraction Operations
+  # ─────────────────────────────────────────────────────────────────────────────
+  /documents/{document_id}/extract:
+    parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    
+    post:
+      tags: [Extraction]
+      summary: Extract data from document using schema
+      operationId: extractDocument
+      description: |
+        Initiates schema-based extraction for a document.
+        
+        The document type and version must be specified. If the document
+        doesn't match the specified type, extraction is rejected with an error
+        requiring manual type specification.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtractionRequest'
+      responses:
+        '202':
+          description: Extraction initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractionResultResponse'
+        '400':
+          description: Invalid request or document type mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /documents/{document_id}/extractions:
+    parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    
+    get:
+      tags: [Extraction]
+      summary: Get extraction history for document
+      operationId: getDocumentExtractions
+      responses:
+        '200':
+          description: List of extraction results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractionResultListResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /extractions/{extraction_id}:
+    parameters:
+      - name: extraction_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    
+    get:
+      tags: [Extraction]
+      summary: Get extraction result details
+      operationId: getExtractionResult
+      responses:
+        '200':
+          description: Extraction result with all fields and citations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractionResultDetailResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /extractions/{extraction_id}/fields/{field_name}/review:
+    parameters:
+      - name: extraction_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: field_name
+        in: path
+        required: true
+        schema:
+          type: string
+    
+    post:
+      tags: [Extraction]
+      summary: Submit human review decision for a field
+      operationId: reviewExtractedField
+      description: |
+        Allows human reviewer to confirm, correct, or reject an extracted field value.
+        Used when field is flagged for review due to low confidence or model conflicts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FieldReviewRequest'
+      responses:
+        '200':
+          description: Review recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractedFieldResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Parameters
+  # ─────────────────────────────────────────────────────────────────────────────
+  parameters:
+    DocumentTypeId:
+      name: document_type_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Document type identifier
+
+    Version:
+      name: version
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[a-zA-Z0-9._-]+$'
+      description: Schema version string
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Responses
+  # ─────────────────────────────────────────────────────────────────────────────
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Schemas
+  # ─────────────────────────────────────────────────────────────────────────────
+  schemas:
+    # ── Enums ──────────────────────────────────────────────────────────────────
+    ModelType:
+      type: string
+      enum: [ocr, layout, llm, custom]
+      description: Type of extraction model
+
+    CitationLevel:
+      type: string
+      enum: [page, bounding_box, both]
+      description: Granularity of source citations
+
+    ExtractionStatus:
+      type: string
+      enum: [pending, in_progress, completed, failed, needs_review]
+      description: Status of extraction process
+
+    CombinationStrategy:
+      type: string
+      enum: [sequential, parallel, ensemble]
+      description: How to combine multiple models
+
+    ConflictResolution:
+      type: string
+      enum: [highest_confidence, flag_for_review, primary_wins]
+      description: How to resolve model conflicts
+
+    # ── Document Types ─────────────────────────────────────────────────────────
+    DocumentTypeCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+          pattern: '^[A-Za-z][A-Za-z0-9_\s-]{2,99}$'
+          example: "Bank Statement"
+        description:
+          type: string
+          maxLength: 500
+          example: "Monthly bank account statements from major financial institutions"
+
+    DocumentTypeUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        is_active:
+          type: boolean
+
+    DocumentTypeResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+        versions_count:
+          type: integer
+          description: Number of schema versions
+
+    DocumentTypeListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentTypeResponse'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    # ── Schema Versions ────────────────────────────────────────────────────────
+    SchemaVersionCreateRequest:
+      type: object
+      required: [version, input_schema, output_schema, model_config, citation_level]
+      properties:
+        version:
+          type: string
+          pattern: '^[a-zA-Z0-9._-]+$'
+          example: "2.0.0"
+        input_schema:
+          type: object
+          description: JSON Schema defining fields to extract
+        output_schema:
+          type: object
+          description: JSON Schema defining output structure
+        model_config:
+          $ref: '#/components/schemas/ModelConfiguration'
+        citation_level:
+          $ref: '#/components/schemas/CitationLevel'
+        confidence_threshold:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.7
+          description: Threshold below which fallback is triggered
+
+    SchemaVersionUpdateRequest:
+      type: object
+      properties:
+        model_config:
+          $ref: '#/components/schemas/ModelConfiguration'
+        confidence_threshold:
+          type: number
+          minimum: 0
+          maximum: 1
+        is_active:
+          type: boolean
+
+    SchemaVersionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        document_type_id:
+          type: string
+          format: uuid
+        version:
+          type: string
+        input_schema:
+          type: object
+        output_schema:
+          type: object
+        model_config:
+          $ref: '#/components/schemas/ModelConfiguration'
+        citation_level:
+          $ref: '#/components/schemas/CitationLevel'
+        confidence_threshold:
+          type: number
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+
+    SchemaVersionListResponse:
+      type: object
+      properties:
+        document_type_id:
+          type: string
+          format: uuid
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SchemaVersionResponse'
+
+    # ── Model Configuration ────────────────────────────────────────────────────
+    ModelConfiguration:
+      type: object
+      required: [models, combination_strategy, conflict_resolution]
+      properties:
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelPipelineEntry'
+          minItems: 1
+        combination_strategy:
+          $ref: '#/components/schemas/CombinationStrategy'
+        conflict_resolution:
+          $ref: '#/components/schemas/ConflictResolution'
+
+    ModelPipelineEntry:
+      type: object
+      required: [model_id, order, strategy]
+      properties:
+        model_id:
+          type: string
+          format: uuid
+        order:
+          type: integer
+          minimum: 1
+        strategy:
+          type: string
+          enum: [primary, fallback, parallel]
+        fields:
+          type: array
+          items:
+            type: string
+          description: Fields this model extracts ("*" for all)
+
+    # ── Extraction Models ──────────────────────────────────────────────────────
+    ExtractionModelCreateRequest:
+      type: object
+      required: [name, type, version]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          example: "azure_doc_intelligence_v4"
+        type:
+          $ref: '#/components/schemas/ModelType'
+        endpoint:
+          type: string
+          format: uri
+        version:
+          type: string
+          example: "4.0"
+        capabilities:
+          type: array
+          items:
+            type: string
+          example: ["ocr", "tables", "key_value_pairs"]
+
+    ExtractionModelResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/ModelType'
+        endpoint:
+          type: string
+        version:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    ExtractionModelListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExtractionModelResponse'
+        total:
+          type: integer
+
+    # ── Extraction Operations ──────────────────────────────────────────────────
+    ExtractionRequest:
+      type: object
+      required: [document_type_id, version]
+      properties:
+        document_type_id:
+          type: string
+          format: uuid
+          description: Document type to extract as
+        version:
+          type: string
+          description: Schema version to use
+
+    ExtractionResultResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        document_id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/ExtractionStatus'
+        created_at:
+          type: string
+          format: date-time
+
+    ExtractionResultDetailResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        document_id:
+          type: string
+          format: uuid
+        document_type:
+          type: string
+        version:
+          type: string
+        status:
+          $ref: '#/components/schemas/ExtractionStatus'
+        models_used:
+          type: array
+          items:
+            type: string
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExtractedFieldResponse'
+        processing_duration_ms:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+
+    ExtractionResultListResponse:
+      type: object
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        extractions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExtractionResultResponse'
+
+    ExtractedFieldResponse:
+      type: object
+      properties:
+        field_name:
+          type: string
+        value:
+          description: Extracted value (type depends on schema)
+        value_type:
+          type: string
+          enum: [string, number, date, boolean, array, object]
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Citation'
+        needs_review:
+          type: boolean
+        review_reason:
+          type: string
+        alternatives:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alternative'
+        model_source:
+          type: string
+
+    Citation:
+      type: object
+      required: [type, page]
+      properties:
+        type:
+          $ref: '#/components/schemas/CitationLevel'
+        page:
+          type: integer
+          minimum: 1
+        bbox:
+          $ref: '#/components/schemas/BoundingBox'
+        text_snippet:
+          type: string
+          maxLength: 500
+
+    BoundingBox:
+      type: object
+      properties:
+        x:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Left edge (normalized 0.0-1.0)
+        y:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Top edge (normalized 0.0-1.0)
+        width:
+          type: number
+          minimum: 0
+          maximum: 1
+        height:
+          type: number
+          minimum: 0
+          maximum: 1
+
+    Alternative:
+      type: object
+      properties:
+        value:
+          description: Alternative extracted value
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        model_source:
+          type: string
+
+    FieldReviewRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [confirm, correct, reject]
+        corrected_value:
+          description: New value if action is "correct"
+        notes:
+          type: string
+          maxLength: 1000
+
+    ValidationResult:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              path:
+                type: string
+              message:
+                type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
