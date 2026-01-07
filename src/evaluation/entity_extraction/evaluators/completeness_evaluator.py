@@ -86,6 +86,7 @@ class ExtractionCompletenessEvaluator(BaseEvaluator):
                 1. **is_relevant**: Is the extracted value relevant to the field name? (true/false)
                 2. **is_complete**: Does the extracted value contain all necessary information from the source? (true/false)
                 3. **missing_info**: List any important information that is missing from the extracted value but present in the source (empty list if none)
+                    - If only the chinese translation is missing, still consider it complete.
                 4. **reasoning**: Brief explanation of your assessment
 
                 Return your response as a JSON object with the following structure:

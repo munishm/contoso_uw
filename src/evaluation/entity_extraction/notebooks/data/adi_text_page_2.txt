@@ -1,0 +1,149 @@
+f.
+
+Telephone No. 聯絡電話(Please provide at least one telephone no. with its Country/Region Code, Area Code (if any) and country/region 請最少提供一個聯
+絡電話、其國家/區域編號及地區編號(如適用)與所屬國家/地區)
+
+Home 住宅
+☐
+Hong Kong SAR 香港特別行政區
+☐
+US 美國
+☐
+China 中國
+☐
+Other countries/regions 其他國家/地區
+
+\-
+
+\-
+
+Country/Region Code 國家/區域編號
+
+Area Code (if any)地區編號(如適用)
+Telephone No. 電話號碼
+
+Work 工作
+Hong Kong SAR 香港特別行政區
+☐
+US 美國
+☐
+China 中國
+☐
+Other countries/regions 其他國家/地區
+☒
+
+2402
+****
+
+Country/Region Code 國家/區域編號
+
+\-
+
+Area Code (if any)地區編號(如適用)
+Telephone No. 電話號碼
+
+Mobile 手提電話
+(Please provide a valid mobile number, we may send you important message via SMS 請提供有效的手機號碼,本公司或會通過短信向您發送重要信息)
+☐
+Hong Kong SAR 香港特別行政區
+☐
+US 美國
+☐
+China 中國
+☐
+Other countries/regions 其他國家/地區
+
+\-
+
+\-
+
+Country/Region Code 國家/區域編號
+
+Area Code (if any)地區編號(如適用)
+Telephone No. 電話號碼
+
+Email Address 電子郵寄地址(Please provide a valid email address, we may send you important message via email 請提供有效的電子郵寄地址,本公司
+或會通過電郵向您發送重要信息)
+
+g.
+Employment Status 職業狀況
+☐
+Self-Employed
+☐
+Full-time Employed
+全職
+☐
+Part-time Employed
+兼職
+
+☐
+Not Currently Employed
+非在職
+☐
+Student
+學生
+
+自僱
+☐
+Housewife
+主婦
+☐
+Retired
+退休
+
+Name of Employer / Business (where applicable)僱主/公司名稱(如適用)
+JOU PRINTING LTD
+
+Business Industry 公司行業/ Nature of Business (where applicable)業務性質(如適用)
+TRADING OF OTHER SPECIAL PURPOSE MACHINERY
+
+Job Title (where applicable)職位(如適用)
+DIRECTOR
+
+Work address (where applicable)工作地址(如適用)
+Flat A, 7/F Kong Nam Industrial Building, Castle Peak Rd, Tsuen Wan, Hong Kong
+
+h. How long have you worked for this Employer? If less than 2
+years, please provide details of the former Employer. 閣下在現任
+僱主的服務年資?若少於兩年,請提供前僱主資料。
+
+\> 20
+
+Years
+年
+
+i. How many employees are there in your Company?
+閣下現任公司的僱員人數?
+
+Around 10
+
+j. Do you intend to take up a different occupation in the next 12 months? If Yes, please state the details:
+閣下是否有意在未來12個月內轉職?若答「是」,請說明詳情:
+
+☐
+Yes
+是
+☒
+No
+否
+
+k.
+
+US Tax ID (where applicable)\*美國税務編號(如適用)\*
+∥∧
+
+1\.
+
+Local Tax ID (where applicable and Optional)\*#地方税務編號(如適用及非必要填寫)\*#
+∥∧
+
+m.
+
+Country/Region of Local Tax ID (where applicable and Optional)\*#地方税務編號之國家/地區(如適用及非必要填寫)\*#
+∥∧
+
+\* Optional if Proposed Insured is different from Policyholder 若受保人與保單持有人不同,非必要填寫
+\# any country/region other than US 美國以外之國家/地區
+
+<!-- PageFooter="FORM_NB001B: Broker Application V26 (1224)" -->
+<!-- PageNumber="Page 頁次 2/29" -->

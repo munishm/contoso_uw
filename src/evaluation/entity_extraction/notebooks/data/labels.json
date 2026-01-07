@@ -1,0 +1,51 @@
+[
+    {
+        "page_number": 1,
+        "entity_presence": {
+            "Applicant Name": true
+        },
+        "entity_value": {
+            "Applicant Name": "Ms LOK WING CHING"
+        },
+        "chinese_entity_value": {
+            "Applicant Name": "林詠菁"
+        }
+    },
+    {
+        "page_number": 2,
+        "entity_presence": {
+            "Job Title of Applicant": true
+        },
+        "entity_value": {
+            "Job Title of Applicant": "DIRECTOR"
+        },
+        "chinese_entity_value": {}
+    },
+    {
+        "page_number": 4,
+        "entity_presence": {
+            "Business Registration Number of Employer": true
+        },
+        "entity_value": {
+            "Business Registration Number of Employer": "21893829"
+        },
+        "chinese_entity_value": {
+            "Business Registration Number of Employer": "21893829"
+        }
+    },
+    {
+        "page_number": 8,
+        "entity_presence": {
+            "Height of Applicant": true,
+            "Weight of Applicant": true
+        },
+        "entity_value": {
+            "Height of Applicant": "174 cm",
+            "Weight of Applicant": "77 kg"
+        },
+        "chinese_entity_value": {
+            "Height of Applicant": "身高 174 公分",
+            "Weight of Applicant": "體重 77 公斤"
+        }
+    }
+]
