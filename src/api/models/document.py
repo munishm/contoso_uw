@@ -123,6 +123,9 @@ class DocumentSummaryResponse(BaseModel):
     has_extraction: bool = Field(
         default=False, description="Whether extraction results are available"
     )
+    extraction_status: Optional[str] = Field(
+        default=None, description="Extraction status (completed, skipped, error, etc.)"
+    )
     extraction_needs_review: bool = Field(
         default=False, description="Whether extraction needs human review"
     )

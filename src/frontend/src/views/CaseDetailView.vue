@@ -108,12 +108,22 @@
 
                   <template v-slot:append>
                     <div class="d-flex flex-column align-end gap-2">
-                      <status-badge :status="doc.processing_status" size="small" />
+                      <div class="d-flex align-center gap-1">
+                        <status-badge :status="doc.processing_status" size="small" />
+                        <v-chip
+                          v-if="doc.extraction_status"
+                          :color="getExtractionStatusColor(doc.extraction_status)"
+                          size="x-small"
+                          variant="tonal"
+                        >
+                          {{ formatExtractionStatus(doc.extraction_status) }}
+                        </v-chip>
+                      </div>
                       <v-btn
                         size="small"
                         variant="text"
                         color="primary"
-                        @click="viewDocument(doc.document_id)"
+                        @click.stop="viewDocument(doc.document_id)"
                       >
                         View
                       </v-btn>
@@ -186,7 +196,10 @@ async function loadDocuments() {
 }
 
 function viewDocument(documentId: string) {
-  router.push(`/cases/${caseId.value}/documents/${documentId}`)
+  console.log('viewDocument called with:', documentId, 'caseId:', caseId.value)
+  const path = `/cases/${caseId.value}/documents/${documentId}`
+  console.log('Navigating to:', path)
+  router.push(path)
 }
 
 function formatDate(dateString: string): string {
@@ -247,5 +260,25 @@ function getDocumentIcon(contentType: string): { icon: string; color: string } {
   if (contentType.includes('word') || contentType.includes('document')) return { icon: 'mdi-file-word', color: 'blue' }
   if (contentType.includes('image')) return { icon: 'mdi-file-image', color: 'green' }
   return { icon: 'mdi-file-document', color: 'grey' }
+}
+
+function getExtractionStatusColor(status: string): string {
+  switch (status) {
+    case 'completed': return 'success'
+    case 'skipped': return 'grey'
+    case 'error': return 'error'
+    case 'review_required': return 'warning'
+    default: return 'info'
+  }
+}
+
+function formatExtractionStatus(status: string): string {
+  switch (status) {
+    case 'completed': return 'Extracted'
+    case 'skipped': return 'Skipped'
+    case 'error': return 'Error'
+    case 'review_required': return 'Review'
+    default: return status
+  }
 }
 </script>

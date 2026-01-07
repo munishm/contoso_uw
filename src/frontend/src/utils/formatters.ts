@@ -15,27 +15,31 @@ export function formatRelativeTime(isoString: string): string {
 }
 
 /**
- * Format confidence score as percentage
+ * Format confidence score as percentage (0.0-1.0 scale to 0%-100%)
  */
 export function formatConfidence(score: number): string {
-  return `${Math.round(score)}%`
+  // Handle both 0-1 scale and 0-100 scale
+  const percentage = score <= 1 ? score * 100 : score
+  return `${Math.round(percentage)}%`
 }
 
 /**
- * Get confidence level label
+ * Get confidence level label (works with 0-1 scale)
  */
 export function getConfidenceLevel(score: number): 'high' | 'medium' | 'low' {
-  if (score >= 90) return 'high'
-  if (score >= 70) return 'medium'
+  const percentage = score <= 1 ? score * 100 : score
+  if (percentage >= 90) return 'high'
+  if (percentage >= 70) return 'medium'
   return 'low'
 }
 
 /**
- * Get confidence color for UI
+ * Get confidence color for UI (works with 0-1 scale)
  */
 export function getConfidenceColor(score: number): string {
-  if (score >= 90) return 'success'
-  if (score >= 70) return 'warning'
+  const percentage = score <= 1 ? score * 100 : score
+  if (percentage >= 90) return 'success'
+  if (percentage >= 70) return 'warning'
   return 'error'
 }
 

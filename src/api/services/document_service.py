@@ -319,7 +319,7 @@ class DocumentService:
 
         blob_path = document["blob_path"]
         expiry_hours = 1
-        download_url = await self.storage_service.get_download_url(
+        download_url, expires_at = await self.storage_service.get_download_url(
             blob_path, expiry_hours=expiry_hours
         )
 
@@ -327,7 +327,7 @@ class DocumentService:
             document_id=document_id,
             filename=document["filename"],
             download_url=download_url,
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=expiry_hours),
+            expires_at=expires_at,
             content_type=document["content_type"],
             size_bytes=document["size_bytes"],
         )
@@ -469,9 +469,10 @@ class DocumentService:
         """Convert document data to summary response."""
         # Check extraction status for summary
         extraction_data = document.get("extraction")
+        extraction_status = extraction_data.get("status") if extraction_data else None
         has_extraction = bool(
             extraction_data 
-            and extraction_data.get("status") in ("completed", "review_required")
+            and extraction_status in ("completed", "review_required")
             and extraction_data.get("fields")
         )
         extraction_needs_review = bool(
@@ -487,6 +488,7 @@ class DocumentService:
             processing_status=ProcessingStatus(document["processing_status"]),
             classification=document.get("classification"),  # Pass as string directly
             has_extraction=has_extraction,
+            extraction_status=extraction_status,
             extraction_needs_review=extraction_needs_review,
             created_at=datetime.fromisoformat(document["created_at"]),
             updated_at=datetime.fromisoformat(document["updated_at"]),
