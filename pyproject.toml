@@ -30,6 +30,11 @@ api = [
     "httpx>=0.27.0",
     "pyjwt[crypto]>=2.8.0",
     "aiohttp>=3.9.0",  # Required for async Azure SDK operations
+    "requests>=2.28.0",
+    "pikepdf==10.1.0",
+    "pdf2image>=1.16.0",
+    "azure-ai-documentintelligence>=1.0.0",
+    "azure-core>=1.29.0",
 ]
 dev = [
     "pytest>=7.4.0",
@@ -42,15 +47,6 @@ dev = [
 ]
 all = [
     "hsbc-iwpb-uw[api,dev]",
-]
-
-[tool.uv]
-dev-dependencies = [
-    "pytest>=7.4.0",
-    "pytest-cov>=4.1.0",
-    "pytest-asyncio>=0.23.0",
-    "mypy>=1.7.0",
-    "ruff>=0.1.0",
 ]
 
 [tool.uv.workspace]

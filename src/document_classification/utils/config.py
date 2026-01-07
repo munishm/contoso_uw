@@ -44,7 +44,7 @@ class Config:
     CU_API_VERSION = os.getenv("CU_API_VERSION", "2024-12-01-preview")
     
     # Classifier settings
-    CLASSIFIER_ID = "hsbc_insurance_classifier_v5"
+    CLASSIFIER_ID = "hsbc_insurance_classifier_v6"
     CONFIDENCE_THRESHOLD = 0.5
     
     # Output settings
