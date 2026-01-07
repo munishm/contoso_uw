@@ -74,6 +74,29 @@
               Models: {{ document.extraction.models_used.join(', ') }}
             </v-card-subtitle>
             
+            <!-- PDF View Toggle -->
+            <v-card-text class="py-2" v-if="hasExtractedFields">
+              <v-btn-toggle 
+                v-model="pdfViewMode" 
+                mandatory 
+                density="compact"
+                color="primary"
+                class="w-100"
+              >
+                <v-btn value="annotated" class="flex-grow-1" size="small">
+                  <v-icon start size="small">mdi-pencil-box-outline</v-icon>
+                  Annotated PDF
+                </v-btn>
+                <v-btn value="original" class="flex-grow-1" size="small">
+                  <v-icon start size="small">mdi-file-pdf-box</v-icon>
+                  Original PDF
+                </v-btn>
+              </v-btn-toggle>
+              <p class="text-caption text-grey mt-2 mb-0" v-if="pdfViewMode === 'annotated'">
+                Click on a field to highlight its location in the PDF
+              </p>
+            </v-card-text>
+            
             <!-- Extracted Fields -->
             <v-card-text v-if="extractedFields.length > 0">
               <v-list density="compact" class="extraction-list">
@@ -81,8 +104,14 @@
                   v-for="(field, index) in extractedFields" 
                   :key="index"
                   class="extraction-field mb-2 pa-3"
-                  :class="{ 'needs-review': field.needs_review }"
+                  :class="{ 
+                    'needs-review': field.needs_review,
+                    'highlighted': highlightedField === field.field_name,
+                    'clickable': field.citations?.length > 0
+                  }"
+                  :style="getFieldStyle(field)"
                   rounded
+                  @click="toggleFieldHighlight(field)"
                 >
                   <template v-slot:prepend>
                     <v-icon 
@@ -120,18 +149,69 @@
                       >
                         {{ formatConfidence(field.confidence) }}
                       </v-chip>
-                      <v-tooltip v-if="field.citations?.length" location="left">
-                        <template v-slot:activator="{ props }">
-                          <v-icon v-bind="props" size="x-small" color="grey">
-                            mdi-file-document-outline
-                          </v-icon>
-                        </template>
-                        <span>Page {{ field.citations[0]?.page }}</span>
-                      </v-tooltip>
+                      <div class="d-flex align-center">
+                        <v-tooltip v-if="field.citations?.length" location="left">
+                          <template v-slot:activator="{ props }">
+                            <v-icon v-bind="props" size="x-small" color="grey" class="mr-1">
+                              mdi-file-document-outline
+                            </v-icon>
+                          </template>
+                          <span>Page {{ field.citations[0]?.page }}</span>
+                        </v-tooltip>
+                        <v-icon 
+                          v-if="highlightedField === field.field_name"
+                          size="x-small" 
+                          color="primary"
+                        >
+                          mdi-eye
+                        </v-icon>
+                      </div>
                     </div>
                   </template>
                 </v-list-item>
               </v-list>
+              
+              <!-- Color Legend -->
+              <v-expansion-panels variant="accordion" class="mt-3" v-if="pdfViewMode === 'annotated'">
+                <v-expansion-panel>
+                  <v-expansion-panel-title class="py-2">
+                    <v-icon size="small" class="mr-2">mdi-palette</v-icon>
+                    <span class="text-body-2">Color Legend</span>
+                  </v-expansion-panel-title>
+                  <v-expansion-panel-text>
+                    <div class="legend-items">
+                      <div 
+                        v-for="(info, fieldName) in fieldColors" 
+                        :key="fieldName"
+                        class="legend-item d-flex align-center mb-1"
+                      >
+                        <div 
+                          class="color-swatch mr-2" 
+                          :style="{ backgroundColor: info.hex }"
+                        />
+                        <span class="text-caption">{{ formatFieldName(String(fieldName)) }}</span>
+                        <v-chip 
+                          v-if="info.needs_review" 
+                          size="x-small" 
+                          color="warning" 
+                          class="ml-1"
+                        >
+                          Review
+                        </v-chip>
+                      </div>
+                      <v-divider class="my-2" />
+                      <div class="legend-item d-flex align-center mb-1">
+                        <div class="color-swatch mr-2" style="background-color: #ffcc00;" />
+                        <span class="text-caption text-grey">Needs Review (dashed)</span>
+                      </div>
+                      <div class="legend-item d-flex align-center">
+                        <div class="color-swatch mr-2" style="background-color: #ff8000;" />
+                        <span class="text-caption text-grey">Low Confidence (&lt;70%)</span>
+                      </div>
+                    </div>
+                  </v-expansion-panel-text>
+                </v-expansion-panel>
+              </v-expansion-panels>
               
               <!-- Review Warning -->
               <v-alert 
@@ -257,8 +337,26 @@
           <v-card class="pdf-viewer-card">
             <v-card-title class="d-flex align-center py-2">
               <v-icon class="mr-2">mdi-file-pdf-box</v-icon>
-              Document Preview
+              {{ pdfViewMode === 'annotated' ? 'Annotated Document' : 'Document Preview' }}
+              <v-chip 
+                v-if="pdfViewMode === 'annotated' && highlightedField" 
+                size="small" 
+                color="primary"
+                class="ml-2"
+                closable
+                @click:close="clearHighlight"
+              >
+                {{ formatFieldName(highlightedField) }}
+              </v-chip>
               <v-spacer />
+              <v-btn 
+                variant="text" 
+                size="small"
+                icon="mdi-refresh"
+                @click="refreshPdf"
+                title="Refresh PDF"
+                :loading="isLoadingPdf"
+              />
               <v-btn 
                 variant="text" 
                 size="small"
@@ -271,7 +369,7 @@
             <v-card-text class="pa-0">
               <div v-if="isLoadingPdf" class="pdf-loading d-flex align-center justify-center">
                 <v-progress-circular indeterminate color="primary" />
-                <span class="ml-3">Loading document...</span>
+                <span class="ml-3">{{ pdfViewMode === 'annotated' ? 'Generating annotated PDF...' : 'Loading document...' }}</span>
               </div>
               <div v-else-if="pdfError" class="pdf-error d-flex flex-column align-center justify-center">
                 <v-icon size="48" color="grey">mdi-file-alert-outline</v-icon>
@@ -287,8 +385,9 @@
                 </v-btn>
               </div>
               <iframe 
-                v-else-if="pdfUrl"
-                :src="pdfUrl"
+                v-else-if="currentPdfUrl"
+                :key="pdfKey"
+                :src="currentPdfUrl"
                 class="pdf-iframe"
                 frameborder="0"
               />
@@ -320,7 +419,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDocumentsStore } from '@/stores/documents'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -329,7 +428,7 @@ import StatusBadge from '@/components/common/StatusBadge.vue'
 import { formatConfidence, getConfidenceColor } from '@/utils/formatters'
 import { DOCUMENT_TYPE_LABELS } from '@/utils/constants'
 import apiClient from '@/services/api'
-import type { ExtractedFieldResult } from '@/types/document'
+import type { ExtractedFieldResult, FieldColorInfo } from '@/types/document'
 
 const props = defineProps<{
   caseId: string
@@ -344,9 +443,28 @@ const error = computed(() => documentsStore.error)
 const isDownloading = ref(false)
 
 // PDF Viewer state
-const pdfUrl = ref<string | null>(null)
+const pdfViewMode = ref<'annotated' | 'original'>('annotated')
+const originalPdfUrl = ref<string | null>(null)
+const annotatedPdfUrl = ref<string | null>(null)
 const isLoadingPdf = ref(false)
 const pdfError = ref<string | null>(null)
+const pdfKey = ref(0) // Force iframe refresh
+
+// Field highlighting
+const highlightedField = ref<string | null>(null)
+const fieldColors = ref<Record<string, FieldColorInfo>>({})
+
+// Computed properties
+const currentPdfUrl = computed(() => {
+  if (pdfViewMode.value === 'annotated' && annotatedPdfUrl.value) {
+    return annotatedPdfUrl.value
+  }
+  return originalPdfUrl.value
+})
+
+const hasExtractedFields = computed(() => {
+  return extractedFields.value.length > 0
+})
 
 // Computed properties for extraction
 const extractedFields = computed<ExtractedFieldResult[]>(() => {
@@ -394,6 +512,7 @@ onMounted(async () => {
   // Auto-load PDF preview when document is ready
   if (document.value?.processing_status === 'completed') {
     loadPdfPreview()
+    loadFieldColors()
   }
 })
 
@@ -401,18 +520,37 @@ onMounted(async () => {
 watch(
   () => document.value?.processing_status,
   (status) => {
-    if (status === 'completed' && !pdfUrl.value) {
+    if (status === 'completed' && !originalPdfUrl.value) {
       loadPdfPreview()
+      loadFieldColors()
     }
   }
 )
 
+// Watch for PDF view mode changes
+watch(pdfViewMode, async () => {
+  // Force iframe refresh when switching modes
+  pdfKey.value++
+  
+  if (pdfViewMode.value === 'annotated') {
+    if (!annotatedPdfUrl.value) {
+      await loadAnnotatedPdf()
+    }
+  } else {
+    // Clear highlight when switching to original
+    highlightedField.value = null
+  }
+})
+
+// Watch for highlighted field changes
+watch(highlightedField, async () => {
+  if (pdfViewMode.value === 'annotated') {
+    await loadAnnotatedPdf()
+  }
+})
+
 function goBack() {
   router.push(`/cases/${props.caseId}`)
-}
-
-function formatDocumentType(type: string): string {
-  return DOCUMENT_TYPE_LABELS[type] || type
 }
 
 function formatFieldName(name: string): string {
@@ -442,6 +580,54 @@ function formatDate(dateString?: string | null): string {
   }
 }
 
+function getFieldStyle(field: ExtractedFieldResult) {
+  if (highlightedField.value === field.field_name) {
+    const color = fieldColors.value[field.field_name]
+    if (color) {
+      return {
+        borderLeft: `4px solid ${color.hex}`,
+        backgroundColor: `${color.hex}15`,
+      }
+    }
+    return {
+      borderLeft: '4px solid #1976d2',
+      backgroundColor: '#1976d215',
+    }
+  }
+  return {}
+}
+
+function toggleFieldHighlight(field: ExtractedFieldResult) {
+  if (!field.citations?.length) return
+  
+  if (highlightedField.value === field.field_name) {
+    highlightedField.value = null
+  } else {
+    highlightedField.value = field.field_name
+    // Switch to annotated view if not already
+    if (pdfViewMode.value !== 'annotated') {
+      pdfViewMode.value = 'annotated'
+    }
+  }
+}
+
+function clearHighlight() {
+  highlightedField.value = null
+}
+
+async function loadFieldColors() {
+  try {
+    const response = await apiClient.get(
+      `/cases/${props.caseId}/documents/${props.documentId}/field-colors`
+    )
+    if (response.data?.fields) {
+      fieldColors.value = response.data.fields
+    }
+  } catch (err) {
+    console.warn('Failed to load field colors:', err)
+  }
+}
+
 async function downloadDocument() {
   try {
     isDownloading.value = true
@@ -462,14 +648,16 @@ async function loadPdfPreview() {
   try {
     isLoadingPdf.value = true
     pdfError.value = null
+    
+    // Load original PDF URL
     const response = await apiClient.get(`/cases/${props.caseId}/documents/${props.documentId}/download`)
     if (response.data?.download_url) {
-      // Use Google Docs viewer for better PDF rendering, or direct URL for browsers that support it
-      const url = response.data.download_url
-      // Direct embed - most modern browsers can render PDFs directly
-      pdfUrl.value = url
-    } else {
-      pdfError.value = 'Unable to load document preview'
+      originalPdfUrl.value = response.data.download_url
+    }
+    
+    // Also load annotated PDF if we have extraction results
+    if (hasExtractedFields.value && pdfViewMode.value === 'annotated') {
+      await loadAnnotatedPdf()
     }
   } catch (err) {
     console.error('Failed to load PDF preview:', err)
@@ -479,13 +667,69 @@ async function loadPdfPreview() {
   }
 }
 
+async function loadAnnotatedPdf() {
+  try {
+    isLoadingPdf.value = true
+    pdfError.value = null
+    
+    // Build URL with query params
+    let url = `/cases/${props.caseId}/documents/${props.documentId}/annotated-pdf?show_labels=true`
+    if (highlightedField.value) {
+      url += `&highlight_field=${encodeURIComponent(highlightedField.value)}`
+    }
+    
+    // Get annotated PDF as blob
+    const response = await apiClient.get(url, {
+      responseType: 'blob'
+    })
+    
+    // Create blob URL for the annotated PDF
+    const blob = new Blob([response.data], { type: 'application/pdf' })
+    
+    // Revoke previous URL if exists
+    if (annotatedPdfUrl.value) {
+      URL.revokeObjectURL(annotatedPdfUrl.value)
+    }
+    
+    annotatedPdfUrl.value = URL.createObjectURL(blob)
+    pdfKey.value++ // Force iframe refresh
+  } catch (err: any) {
+    console.error('Failed to load annotated PDF:', err)
+    // Fall back to original PDF
+    if (err.response?.status === 400) {
+      // Document doesn't support annotation, use original
+      pdfViewMode.value = 'original'
+    } else {
+      pdfError.value = 'Failed to generate annotated PDF. Showing original.'
+      pdfViewMode.value = 'original'
+    }
+  } finally {
+    isLoadingPdf.value = false
+  }
+}
+
+async function refreshPdf() {
+  if (pdfViewMode.value === 'annotated') {
+    await loadAnnotatedPdf()
+  } else {
+    await loadPdfPreview()
+  }
+}
+
 function openInNewTab() {
-  if (pdfUrl.value) {
-    window.open(pdfUrl.value, '_blank')
+  if (currentPdfUrl.value) {
+    window.open(currentPdfUrl.value, '_blank')
   } else {
     downloadDocument()
   }
 }
+
+// Cleanup blob URLs on unmount
+onUnmounted(() => {
+  if (annotatedPdfUrl.value) {
+    URL.revokeObjectURL(annotatedPdfUrl.value)
+  }
+})
 </script>
 
 <style scoped>
@@ -496,11 +740,25 @@ function openInNewTab() {
 .extraction-field {
   background: #fafafa;
   border: 1px solid #e0e0e0;
+  transition: all 0.2s ease;
+}
+
+.extraction-field.clickable {
+  cursor: pointer;
+}
+
+.extraction-field.clickable:hover {
+  background: #f0f0f0;
+  transform: translateX(2px);
 }
 
 .extraction-field.needs-review {
   background: #fff8e1;
   border-color: #ffcc80;
+}
+
+.extraction-field.highlighted {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .field-name {
@@ -529,5 +787,21 @@ function openInNewTab() {
   height: calc(100vh - 200px);
   min-height: 600px;
   background: #f5f5f5;
+}
+
+/* Color Legend */
+.legend-items {
+  padding: 4px 0;
+}
+
+.legend-item {
+  font-size: 0.85rem;
+}
+
+.color-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
 }
 </style>

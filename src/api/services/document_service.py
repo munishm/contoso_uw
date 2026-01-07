@@ -22,6 +22,8 @@ from src.api.models.document import (
     DocumentSummaryResponse,
     DocumentUploadResponse,
     ExtractedEntity,
+    FieldColorInfo,
+    FieldColorsResponse,
 )
 from src.api.models.enums import DocumentType, ProcessingStatus
 from src.api.repositories.case_repository import CaseRepository
@@ -492,4 +494,106 @@ class DocumentService:
             extraction_needs_review=extraction_needs_review,
             created_at=datetime.fromisoformat(document["created_at"]),
             updated_at=datetime.fromisoformat(document["updated_at"]),
+        )
+
+    async def get_annotated_pdf(
+        self,
+        case_id: str,
+        document_id: str,
+        highlight_field: Optional[str] = None,
+        show_labels: bool = True,
+    ) -> bytes:
+        """
+        Get a PDF with extraction citations drawn as bounding boxes.
+
+        Args:
+            case_id: Case identifier
+            document_id: Document identifier
+            highlight_field: Specific field to highlight (all if None)
+            show_labels: Whether to show field labels on annotations
+
+        Returns:
+            Annotated PDF content as bytes
+
+        Raises:
+            NotFoundError: If document not found
+            BadRequestError: If document has no extraction results or is not a PDF
+        """
+        from src.api.services.pdf_annotation_service import pdf_annotation_service
+        
+        if not pdf_annotation_service:
+            raise BadRequestError("PDF annotation service not available (PyMuPDF not installed)")
+        
+        # Get document
+        document = await self.document_repo.get_document(document_id, case_id)
+        if not document or document.get("case_id") != case_id:
+            raise NotFoundError(f"Document {document_id} not found in case {case_id}")
+        
+        # Verify it's a PDF
+        if document.get("content_type") != "application/pdf":
+            raise BadRequestError("Annotated PDF is only available for PDF documents")
+        
+        # Get extraction data
+        extraction = document.get("extraction")
+        if not extraction or not extraction.get("fields"):
+            raise BadRequestError("Document has no extraction results to annotate")
+        
+        # Download the original PDF
+        blob_path = document["blob_path"]
+        pdf_content = await self.storage_service.download_blob(blob_path)
+        
+        # Annotate the PDF
+        extraction_fields = extraction.get("fields", [])
+        annotated_pdf = pdf_annotation_service.annotate_pdf_with_citations(
+            pdf_content=pdf_content,
+            extraction_fields=extraction_fields,
+            highlight_field=highlight_field,
+            show_labels=show_labels,
+        )
+        
+        logger.info(f"Generated annotated PDF for document {document_id}")
+        return annotated_pdf
+
+    async def get_field_colors(
+        self,
+        case_id: str,
+        document_id: str,
+    ) -> FieldColorsResponse:
+        """
+        Get the color mapping for extraction fields.
+
+        Args:
+            case_id: Case identifier
+            document_id: Document identifier
+
+        Returns:
+            Field colors response for UI legend
+
+        Raises:
+            NotFoundError: If document not found
+        """
+        from src.api.services.pdf_annotation_service import pdf_annotation_service
+        
+        # Get document
+        document = await self.document_repo.get_document(document_id, case_id)
+        if not document or document.get("case_id") != case_id:
+            raise NotFoundError(f"Document {document_id} not found in case {case_id}")
+        
+        # Get extraction data
+        extraction = document.get("extraction")
+        fields = extraction.get("fields", []) if extraction else []
+        
+        # Get colors from annotation service
+        if pdf_annotation_service and fields:
+            color_data = pdf_annotation_service.get_field_colors(fields)
+            field_colors = {
+                name: FieldColorInfo(**info)
+                for name, info in color_data.items()
+            }
+        else:
+            field_colors = {}
+        
+        return FieldColorsResponse(
+            document_id=document_id,
+            fields=field_colors,
         )

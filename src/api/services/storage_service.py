@@ -127,6 +127,22 @@ class StorageService:
         safe_filename = filename.replace("/", "_").replace("\\", "_")
         return f"cases/{case_id}/documents/{document_id}/{safe_filename}"
 
+    async def download_blob(self, blob_path: str) -> bytes:
+        """
+        Download blob content as bytes.
+
+        Args:
+            blob_path: The full path for the blob
+
+        Returns:
+            File content as bytes
+        """
+        blob_client = self.container.get_blob_client(blob_path)
+        download_stream = await blob_client.download_blob()
+        content = await download_stream.readall()
+        logger.debug(f"Downloaded blob from: {blob_path} ({len(content)} bytes)")
+        return content
+
     async def upload_blob(
         self,
         blob_path: str,

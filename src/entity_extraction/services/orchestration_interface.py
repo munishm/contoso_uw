@@ -230,7 +230,7 @@ def _format_for_workflow(extraction: ExtractionResult) -> Dict[str, Any]:
     
     fields_data = [
         {
-            "name": field.field_name,
+            "field_name": field.field_name,
             "value": field.value,
             "confidence": field.confidence,
             "needs_review": field.needs_review,
@@ -240,7 +240,7 @@ def _format_for_workflow(extraction: ExtractionResult) -> Dict[str, Any]:
                     "type": citation.type,
                     "page": citation.page,
                     "bbox": citation.bbox.model_dump() if citation.bbox else None,
-                    "text": citation.text_snippet
+                    "text_snippet": citation.text_snippet
                 }
                 for citation in field.citations
             ]

@@ -199,6 +199,24 @@ class DocumentDownloadResponse(BaseModel):
     size_bytes: int = Field(..., description="File size")
 
 
+class FieldColorInfo(BaseModel):
+    """Color information for a single field."""
+    
+    color: str = Field(..., description="RGB color string (e.g., 'rgb(255, 0, 0)')")
+    hex: str = Field(..., description="Hex color code (e.g., '#ff0000')")
+    needs_review: bool = Field(default=False, description="Whether field needs review")
+
+
+class FieldColorsResponse(BaseModel):
+    """Response containing field color mappings for UI legend."""
+    
+    document_id: str = Field(..., description="Document identifier")
+    fields: dict[str, FieldColorInfo] = Field(
+        default_factory=dict, 
+        description="Mapping of field names to their color info"
+    )
+
+
 class ExtractedEntity(BaseModel):
     """Entity extracted from a document."""
 

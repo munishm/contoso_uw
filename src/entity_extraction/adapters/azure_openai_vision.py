@@ -85,7 +85,7 @@ class AzureOpenAIVisionAdapter(ExtractionModelAdapter):
                 field_desc += f"\n  Hints: {', '.join(hints)}"
             field_descriptions.append(field_desc)
         
-        prompt = f"""You are a document extraction system. Analyze this document image and extract the following fields:
+        prompt = f"""You are a document extraction system with precise visual grounding. Analyze this document image and extract the following fields:
 
 {chr(10).join(field_descriptions)}
 
@@ -95,7 +95,12 @@ Return a JSON object with this structure:
     "value": extracted_value_or_null,
     "confidence": confidence_score_0_to_1,
     "page": page_number,
-    "location": "brief description of where found (e.g., 'top left', 'middle of page')"
+    "bbox": {{
+      "x": normalized_x_position_0_to_1,
+      "y": normalized_y_position_0_to_1,
+      "width": normalized_width_0_to_1,
+      "height": normalized_height_0_to_1
+    }}
   }}
 }}
 
@@ -103,7 +108,13 @@ Rules:
 1. If a field is not found, set value to null and confidence to 0.0
 2. confidence should reflect your certainty (0.0 = uncertain, 1.0 = certain)
 3. page should be the 1-indexed page number where the field was found
-4. location should describe the approximate position on the page
+4. bbox coordinates are CRITICAL - they must accurately locate the extracted value:
+   - x: horizontal position from left edge (0.0 = left edge, 1.0 = right edge)
+   - y: vertical position from top edge (0.0 = top edge, 1.0 = bottom edge)
+   - width: width of the field value text (typically 0.1 to 0.4)
+   - height: height of the field value text (typically 0.02 to 0.05)
+   - The bbox should tightly bound the actual VALUE text, not the field label
+5. Be precise with bbox - look at where the actual value text appears on the page
 
 Return ONLY the JSON object, no additional text."""
         
@@ -312,13 +323,25 @@ Return ONLY the JSON object, no additional text."""
             for field_name, field_data in extraction_data.items():
                 value = field_data.get("value")
                 confidence = field_data.get("confidence", 0.0)
-                location_desc = field_data.get("location", "unknown")
                 
                 if value is None:
                     continue
                 
-                # Create citation for this field
-                bbox = self._estimate_bounding_box(location_desc, page_num)
+                # Use actual bbox from response if available, otherwise fall back to estimation
+                bbox_data = field_data.get("bbox")
+                if bbox_data and isinstance(bbox_data, dict):
+                    # Use actual coordinates from GPT-4 Vision response
+                    bbox = BoundingBox(
+                        x=float(bbox_data.get("x", 0.4)),
+                        y=float(bbox_data.get("y", 0.4)),
+                        width=float(bbox_data.get("width", 0.2)),
+                        height=float(bbox_data.get("height", 0.05))
+                    )
+                else:
+                    # Fall back to estimation from location description (legacy support)
+                    location_desc = field_data.get("location", "unknown")
+                    bbox = self._estimate_bounding_box(location_desc, page_num)
+                
                 citation = Citation(
                     type="bounding_box" if schema_version.citation_level.value in ["bounding_box", "both"] else "page",
                     page=page_num,

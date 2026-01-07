@@ -6,7 +6,10 @@ Note: Document upload is handled during case creation. Individual documents
 are extracted from the main document by background processing.
 """
 
-from fastapi import APIRouter, Depends, status
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import Response
 
 from src.api.dependencies import (
     get_case_repository,
@@ -22,6 +25,7 @@ from src.api.models.document import (
     DocumentEntitiesResponse,
     DocumentListResponse,
     DocumentMetadataUpdateRequest,
+    FieldColorsResponse,
 )
 from src.api.repositories.case_repository import CaseRepository
 from src.api.repositories.document_repository import DocumentRepository
@@ -165,3 +169,69 @@ async def get_download_url(
     The URL is valid for 1 hour.
     """
     return await service.get_download_url(case_id, document_id)
+
+
+@router.get(
+    "/cases/{case_id}/documents/{document_id}/annotated-pdf",
+    summary="Get annotated PDF with citations",
+    description="Generate a PDF with bounding boxes drawn on extraction citation locations.",
+    responses={
+        404: {"model": ErrorResponse, "description": "Document not found"},
+        400: {"model": ErrorResponse, "description": "Document has no extraction results"},
+    },
+)
+async def get_annotated_pdf(
+    case_id: str,
+    document_id: str,
+    highlight_field: Optional[str] = Query(
+        None, description="Specific field name to highlight (all fields if not provided)"
+    ),
+    show_labels: bool = Query(
+        True, description="Whether to show field labels on annotations"
+    ),
+    service: DocumentService = Depends(get_document_service),
+) -> Response:
+    """
+    Get an annotated PDF with extraction citations visualized.
+
+    Draws bounding boxes on the PDF showing where each extracted
+    field value was found. Color-coded by field, with special
+    indicators for fields needing review.
+    """
+    annotated_pdf = await service.get_annotated_pdf(
+        case_id=case_id,
+        document_id=document_id,
+        highlight_field=highlight_field,
+        show_labels=show_labels,
+    )
+    
+    return Response(
+        content=annotated_pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="annotated_{document_id}.pdf"',
+        },
+    )
+
+
+@router.get(
+    "/cases/{case_id}/documents/{document_id}/field-colors",
+    response_model=FieldColorsResponse,
+    summary="Get field color mapping",
+    description="Get the color mapping for extraction fields (for UI legend).",
+    responses={
+        404: {"model": ErrorResponse, "description": "Document not found"},
+    },
+)
+async def get_field_colors(
+    case_id: str,
+    document_id: str,
+    service: DocumentService = Depends(get_document_service),
+) -> FieldColorsResponse:
+    """
+    Get the color mapping for extraction fields.
+
+    Returns color information for each field, useful for
+    building a legend in the UI.
+    """
+    return await service.get_field_colors(case_id, document_id)

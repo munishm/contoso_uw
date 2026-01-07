@@ -64,6 +64,18 @@ export interface DocumentExtractionResult {
   extraction_completed_at?: string
 }
 
+// Field color info for annotated PDF legend
+export interface FieldColorInfo {
+  color: string
+  hex: string
+  needs_review: boolean
+}
+
+export interface FieldColorsResponse {
+  document_id: string
+  fields: Record<string, FieldColorInfo>
+}
+
 export interface Document {
   document_id: string
   case_id: string

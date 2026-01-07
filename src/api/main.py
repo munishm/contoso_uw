@@ -119,7 +119,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await queue_service.close()
     logger.info("Application shutdown complete")
 
-
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     settings = get_settings()
