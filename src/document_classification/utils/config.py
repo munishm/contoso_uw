@@ -44,7 +44,7 @@ class Config:
     CU_API_VERSION = "2025-11-01"
     
     # Classifier settings
-    CLASSIFIER_ID = "hsbc_insurance_classifier_v5"
+    CLASSIFIER_ID = "hsbc_insurance_classifier_v6"
     CONFIDENCE_THRESHOLD = 0.5
     
     # Output settings
