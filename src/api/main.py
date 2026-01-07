@@ -81,6 +81,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     else:
         logger.warning("Cosmos DB not configured - COSMOS_ENDPOINT not set")
 
+    # Pre-initialize extraction module's Cosmos client on main thread
+    # This ensures DefaultAzureCredential works before ThreadPoolExecutor usage
+    try:
+        from src.entity_extraction.config import get_cosmos_client as get_extraction_cosmos_client
+        _ = get_extraction_cosmos_client()
+        logger.info("Extraction module Cosmos client pre-initialized")
+    except Exception as e:
+        logger.warning(f"Failed to pre-initialize extraction Cosmos client: {e}")
+
     # Initialize Blob Storage
     if settings.blob_account_url or settings.blob_connection_string:
         try:

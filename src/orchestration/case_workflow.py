@@ -567,7 +567,7 @@ class ExtractionProcessor(IDocumentProcessor):
     DEFAULT_SCHEMA_VERSION = "1.0.0"
     
     # Document types to extract (only these will be processed)
-    EXTRACTABLE_DOCUMENT_TYPES = ["Application"]
+    EXTRACTABLE_DOCUMENT_TYPES = ["Application", "Application Form"]
     
     def __init__(self):
         self._name = "extractor"

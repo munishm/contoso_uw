@@ -66,28 +66,44 @@ async def extract_document_for_workflow(
             pass
         ```
     """
+    import threading
+    current_thread = threading.current_thread().name
+    
     logger.info("=" * 60)
     logger.info("ORCHESTRATION INTERFACE: extract_document_for_workflow")
     logger.info("=" * 60)
+    logger.info(f"  thread: {current_thread}")
     logger.info(f"  document_id: {document_id}")
     logger.info(f"  document_type: {document_type}")
     logger.info(f"  schema_version: {schema_version}")
     logger.info(f"  content_size: {len(document_content)} bytes")
     
     # Initialize services
+    logger.info(f"  Getting config...")
     config = get_config()
+    logger.info(f"  Getting cosmos_client...")
     cosmos_client = get_cosmos_client()
+    logger.info(f"  Getting database client for: {config.cosmos_database}")
     database = cosmos_client.get_database_client(config.cosmos_database)
     
     logger.info(f"  cosmos_database: {config.cosmos_database}")
     
+    logger.info(f"  Creating SchemaRepository...")
     schema_repo = SchemaRepository(database)
+    logger.info(f"  Creating ExtractionRepository...")
     extraction_repo = ExtractionRepository(database)
+    logger.info(f"  Creating ExtractionModelRepository...")
     model_repo = ExtractionModelRepository(database)
     
     # Resolve document type - could be UUID or name
     logger.info(f"  Resolving document type '{document_type}'...")
-    document_type_id = await _resolve_document_type(schema_repo, document_type)
+    try:
+        document_type_id = await _resolve_document_type(schema_repo, document_type)
+    except Exception as e:
+        logger.error(f"  ✗ FAILED to resolve document type: {type(e).__name__}: {e}")
+        import traceback
+        logger.error(f"  Traceback: {traceback.format_exc()}")
+        raise
     
     if not document_type_id:
         # Document type not found - return placeholder
