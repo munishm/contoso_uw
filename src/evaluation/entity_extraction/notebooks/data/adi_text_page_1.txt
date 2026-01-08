@@ -1,0 +1,122 @@
+<figure>
+
+滙豐保險
+HSBC Life
+
+</figure>
+
+
+<!-- PageHeader="HSBCA31" -->
+
+PICS 2020Jun
+
+
+# High Net Worth Universal Life Application Form (with integrated Financial Questionnaire) 高資產萬用壽險申請表(包括財務資料問卷)
+
+The application for this product is subject to the relevant requirements on nationality, residency and/or addresses of the Policyholder and/or
+Life Insured as determined by the Company from time to time. Any alterations made should be signed by the Proposed Insured and Proposed
+Policyholder. Please use BLACK PEN (Permanent Ink) to complete and sign application form and do not use corrective fluid. Please print clearly. If
+you are uncertain as to whether or not any particular information is material, these facts should be disclosed. 本產品之申請亦不時受本公司相關之國
+籍(國家/地區)、居住地及/或保單持有人及/或受保人之地址規定限制。如有任何更改,建議受保人及建議保單持有人均須在有關位置簽署。請
+用黑色筆(不褪色油墨)填寫及簽署本申請表並請勿使用塗改液。請清楚填寫。若閣下未能確定任何特定資料是否關健,該等事實均須被披露。
+
+
+## To HSBC Life (International) Limited / The Hongkong and Shanghai Banking Corporation Limited 致:滙豐人壽保險(國際)有限公司/香港上海滙豐銀行有限公司
+
+
+### 1. Details of the Proposed Insured 建議受保人個人資料
+
+a.
+
+b.
+
+C.
+
+
+<figure>
+
+Family Name
+姓氏
+LOK
+
+☐
+Mr 先生
+☐
+Mrs 太太
+☒
+Ms 女士
+☐
+Others
+其他
+
+Given Name(s)
+名字
+WING CHING
+
+Chinese Name (If any)
+中文姓名(如有)
+林承傑
+☐
+HKID Card 香港身份證
+☐
+Birth Certificate 出生證明書
+No. 號碼
+
+☒
+Passport 護照
+☐
+Other travel document 其他旅遊證件
+No. 號碼 Z683365
+
+Issuing country/region 簽發國家/地區
+
+For non HKID cardholders, please provide entry proof 如非香港身份證持有人,請
+提供入境證明
+☐
+Male
+男
+☒
+Female
+女
+
+Date of Birth 出生日期
+(DD 日/MM月/YYYY 年) 3 JUN 1985
+
+d.
+Nationality 1 (Country/Region)
+國籍1(國家/地區)
+Canadian
+
+Place of Birth
+出生地區
+Hong Kong
+
+Nationality 2 (Country/Region) (please complete if different from Nationality 1)
+國籍2(國家/地區)(若與國籍1不同請填寫此欄)
+N/A
+
+Nationality 3 (Country/Region) (please complete if different from Nationality 1 and 2)
+國籍3(國家/地區)(若與國籍1及2不同請填寫此欄)
+N/A
+
+Correspondence Address 通訊地址
+Flat A, 7/F Kong Nam Industrial Building, Castle Peak Rd, Tsuen Wan, Hong Kong
+
+Postal Code 郵區編號:
+
+Residential Address 住宅地址
+☐
+Same as correspondence address 與通訊地址相同
+
+20/F Parc City, 98 Tai Ho Rd, Tsuen Wan, Hong Kong
+
+</figure>
+
+
+e.
+
+<!-- PageFooter="HSBC Life (International) Limited 滙豐人壽保險(國際)有限公司" -->
+<!-- PageFooter="Incorporated in Bermuda with limited liability 於百慕達註冊成立之有限公司" -->
+<!-- PageFooter="Hong Kong SAR Office Address : 18/F, Tower 1, HSBC Centre, 1 Sham Mong Road, Kowloon, Hong Kong 香港特別行政區辦事處地址:香港九龍深旺道1號滙豐中心1座18樓" -->
+<!-- PageFooter="FORM_NB001B: Broker Application V26 (1224)" -->
+<!-- PageNumber="Page 頁次 1/29" -->
