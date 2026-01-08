@@ -75,6 +75,7 @@ class AzureOpenAIVisionAdapter(ExtractionModelAdapter):
         # Initialize Document Intelligence OCR for precise bounding boxes
         self.doc_intelligence_ocr = None
         self._ocr_results: Optional[Dict[int, List]] = None
+        self._ocr_text_by_page: Optional[Dict[int, str]] = None  # Cache for page text
         
         # Check for Document Intelligence configuration
         # Note: Parameters take priority, then fall back to env vars (for backward compat)
@@ -101,6 +102,30 @@ class AzureOpenAIVisionAdapter(ExtractionModelAdapter):
             print("  ✗ Document Intelligence endpoint NOT provided - bounding boxes will be GPT-4 estimates")
         elif not HAS_DOC_INTELLIGENCE:
             print("  ✗ azure-ai-documentintelligence package NOT installed")
+    
+    def get_ocr_text(self, page: int = None) -> str:
+        """
+        Get OCR text from the last extraction.
+        
+        This reuses Document Intelligence OCR results obtained during extraction,
+        avoiding duplicate API calls.
+        
+        Args:
+            page: Optional page number (1-indexed). If None, returns all pages' text.
+        
+        Returns:
+            OCR text for the specified page or all pages concatenated
+        """
+        if not self._ocr_text_by_page:
+            return ""
+        
+        if page is not None:
+            return self._ocr_text_by_page.get(page, "")
+        
+        # Return all pages concatenated (most docs are single page)
+        return "\n\n".join(
+            self._ocr_text_by_page[p] for p in sorted(self._ocr_text_by_page.keys())
+        )
     
     def _build_extraction_prompt(
         self,
@@ -495,9 +520,17 @@ Return ONLY the JSON object, no additional text."""
                 self._ocr_results = await self.doc_intelligence_ocr.get_ocr_results(document_content)
                 ocr_text_count = sum(len(lines) for lines in self._ocr_results.values())
                 print(f"OCR complete: {len(self._ocr_results)} pages, {ocr_text_count} text lines found")
+                
+               
+                # Cache text by page for later use (e.g., evaluation)
+                self._ocr_text_by_page = {}
+                for page_num, lines in self._ocr_results.items():
+                    page_lines = [line.text for line in lines]
+                    self._ocr_text_by_page[page_num] = "\n".join(page_lines)
             except Exception as e:
                 logger.warning(f"Document Intelligence OCR failed: {e}. Will use GPT-4 Vision estimates.")
                 self._ocr_results = None
+                self._ocr_text_by_page = None
         
         # Check if PDF and convert to images
         if self._is_pdf(document_content):

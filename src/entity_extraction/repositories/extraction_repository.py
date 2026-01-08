@@ -66,11 +66,19 @@ class ExtractionRepository:
         
         return None
     
-    async def update_extraction(self, extraction: ExtractionResult) -> ExtractionResult:
+    async def update_extraction(
+        self, 
+        extraction: ExtractionResult,
+        evaluation_results: dict = None
+    ) -> ExtractionResult:
         """
         Update extraction result by updating the document record.
         
         This embeds the extraction results directly in the document.
+        
+        Args:
+            extraction: Extraction result to save
+            evaluation_results: Optional evaluation results from batch evaluation
         """
         logger.info(f"ExtractionRepository: Updating extraction {extraction.id} for document {extraction.document_id}")
         
@@ -112,6 +120,11 @@ class ExtractionRepository:
             "extraction_started_at": extraction.created_at.isoformat() if extraction.created_at else None,
             "extraction_completed_at": extraction.completed_at.isoformat() if extraction.completed_at else None,
         }
+        
+        # Add evaluation results if provided
+        if evaluation_results:
+            extraction_data["evaluation"] = evaluation_results
+            logger.info("Added evaluation results to extraction data")
         
         # Update the document with extraction results
         doc["extraction"] = extraction_data

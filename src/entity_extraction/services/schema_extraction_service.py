@@ -20,6 +20,20 @@ from ..adapters.base import ExtractionModelAdapter
 from ..adapters import AzureOpenAIVisionAdapter
 from ..config import get_config
 
+# Import evaluation service
+try:
+    from src.evaluation.entity_extraction.evaluation_service import EvaluationService
+    EVALUATION_AVAILABLE = True
+except ImportError:
+    EVALUATION_AVAILABLE = False
+
+# Import Azure Document Intelligence
+try:
+    from azure.ai.documentintelligence import DocumentIntelligenceClient
+    HAS_DOC_INTELLIGENCE = True
+except ImportError:
+    HAS_DOC_INTELLIGENCE = False
+    
 logger = logging.getLogger(__name__)
 
 
@@ -31,7 +45,8 @@ class SchemaExtractionService:
         schema_repo: SchemaRepository,
         extraction_repo: ExtractionRepository,
         model_repo: ExtractionModelRepository,
-        adapters: Optional[Dict[str, ExtractionModelAdapter]] = None
+        adapters: Optional[Dict[str, ExtractionModelAdapter]] = None,
+        enable_evaluation: bool = True
     ):
         """
         Initialize extraction service.
@@ -41,11 +56,32 @@ class SchemaExtractionService:
             extraction_repo: Repository for result storage
             model_repo: Repository for model registry
             adapters: Dictionary of model adapters (name -> adapter instance)
+            enable_evaluation: Whether to run batch evaluation after extraction
         """
         self.schema_repo = schema_repo
         self.extraction_repo = extraction_repo
         self.model_repo = model_repo
         self.adapters = adapters or {}
+        self.enable_evaluation = enable_evaluation and EVALUATION_AVAILABLE
+        
+        # Initialize evaluation service if enabled
+        self.evaluation_service = None
+        if self.enable_evaluation:
+            try:
+                from azure.identity import DefaultAzureCredential
+                config = get_config()
+                credential = DefaultAzureCredential()
+                self.evaluation_service = EvaluationService(
+                    azure_endpoint=getattr(config, 'openai_endpoint', None),
+                    deployment_name=getattr(config, 'openai_deployment_gpt4_vision', None),
+                    api_version="2024-08-01-preview",
+                    credential=credential
+                )
+                logger.info("Evaluation service initialized")
+            except Exception as e:
+                logger.warning(f"Failed to initialize evaluation service: {e}")
+                self.evaluation_service = None
+                self.enable_evaluation = False
     
     def register_adapter(self, name: str, adapter: ExtractionModelAdapter):
         """Register a model adapter."""
@@ -218,10 +254,24 @@ class SchemaExtractionService:
             extraction.completed_at = datetime.utcnow()
             extraction.processing_duration_ms = int((time.time() - start_time) * 1000)
             
-            # 8. Save result
-            extraction = await self.extraction_repo.update_extraction(extraction)
+            # 8. Run batch evaluation if enabled
+            evaluation_results = None
+            if self.enable_evaluation and self.evaluation_service:
+                try:
+                    logger.info("Running batch evaluation...")
+                    # Pass the adapter to reuse OCR text from extraction
+                    evaluation_results = await self._evaluate_extraction(
+                        extraction, document_content, adapter
+                    )
+                    if evaluation_results:
+                        logger.info(f"Evaluation completed: avg score {evaluation_results.get('aggregate_summary', {}).get('average_correctness_score', 'N/A')}")
+                except Exception as eval_error:
+                    logger.error(f"Evaluation failed: {eval_error}")
             
-            # 9. Log extraction
+            # 9. Save result with evaluation
+            extraction = await self.extraction_repo.update_extraction(extraction, evaluation_results)
+            
+            # 10. Log extraction
             self._log_extraction(extraction, document_type.name, version)
             
             return extraction
@@ -401,3 +451,139 @@ class SchemaExtractionService:
     async def get_extraction_result(self, extraction_id: UUID) -> Optional[ExtractionResult]:
         """Get extraction result by ID."""
         return await self.extraction_repo.get_extraction(extraction_id)
+    
+    async def _evaluate_extraction(
+        self,
+        extraction: ExtractionResult,
+        document_content: bytes,
+        adapter: ExtractionModelAdapter = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Run batch evaluation on extracted fields.
+        
+        Args:
+            extraction: The extraction result with fields and citations
+            document_content: Document bytes (fallback if no OCR text available)
+            adapter: The adapter used for extraction (to get OCR text)
+        """
+        if not self.evaluation_service:
+            return None
+        
+        try:
+            # Try to get OCR text from adapter (already extracted during extraction)
+            source_text = None
+            if adapter and hasattr(adapter, 'get_ocr_text'):
+                source_text = adapter.get_ocr_text()
+                if source_text:
+                    logger.info(f"Using OCR text from extraction ({len(source_text)} chars)")
+            
+            # Fallback to extracting text from document
+            if not source_text:
+                logger.info("No OCR text from adapter, extracting from document...")
+                source_text = self._extract_text_from_document(document_content)
+            
+            # Prepare fields for evaluation with page info from citations
+            fields_to_evaluate = []
+            for field in extraction.fields:
+                if field.value is not None:
+                    field_data = {
+                        "field_name": field.field_name,
+                        "value": str(field.value)
+                    }
+                    # Add page info from citation if available
+                    if field.citations and len(field.citations) > 0:
+                        field_data["page"] = field.citations[0].page
+                    fields_to_evaluate.append(field_data)
+            
+            if not fields_to_evaluate:
+                return None
+            
+            # Run batch evaluation
+            return self.evaluation_service.evaluate_batch(
+                fields=fields_to_evaluate,
+                source_text=source_text,
+                evaluators=["correctness"]
+            )
+        except Exception as e:
+            logger.error(f"Evaluation error: {e}")
+            return None
+    
+    def _extract_text_from_document(self, document_content: bytes) -> str:
+        """
+        Extract text from document page-wise using Azure Document Intelligence.
+        
+        Args:
+            document_content: Raw document bytes (PDF, image, etc.)
+            
+        Returns:
+            Text organized by pages for evaluation
+        """
+        try:
+            # First try simple text decode for text files
+            try:
+                text = document_content.decode('utf-8', errors='strict')
+                if len(text.strip()) > 0 and '\x00' not in text[:1000]:
+                    # Looks like a text file, return directly
+                    return text[:50000]
+            except (UnicodeDecodeError, AttributeError):
+                pass
+            
+            # Check if Document Intelligence is available
+            if not HAS_DOC_INTELLIGENCE:
+                logger.warning("Azure Document Intelligence SDK not installed")
+                return "[Document content - OCR library not installed]"
+            
+            # Use Azure Document Intelligence for OCR
+            from azure.identity import DefaultAzureCredential
+            
+            config = get_config()
+            
+            # Get Document Intelligence endpoint
+            doc_intel_endpoint = getattr(config, 'doc_intelligence_endpoint', None)
+            if not doc_intel_endpoint:
+                logger.warning("Document Intelligence endpoint not configured")
+                return "[Document content - OCR not configured]"
+            
+            # Initialize client
+            credential = DefaultAzureCredential()
+            client = DocumentIntelligenceClient(
+                endpoint=doc_intel_endpoint,
+                credential=credential
+            )
+            
+            # Analyze document with prebuilt-read model
+            logger.info("Extracting text using Azure Document Intelligence...")
+            poller = client.begin_analyze_document(
+                model_id="prebuilt-read",
+                body=document_content,
+                content_type="application/octet-stream"
+            )
+            
+            result = poller.result()
+            
+            # Extract text page by page
+            page_texts = []
+            if result.pages:
+                for page in result.pages:
+                    page_num = page.page_number
+                    page_text_lines = []
+                    
+                    # Extract all lines from the page
+                    if page.lines:
+                        for line in page.lines:
+                            page_text_lines.append(line.content)
+                    
+                    # Format page text
+                    page_content = "\n".join(page_text_lines)
+                    page_texts.append(f"[Page {page_num}]\n{page_content}")
+                
+                # Combine all pages
+                full_text = "\n\n".join(page_texts)
+                logger.info(f"Extracted {len(result.pages)} pages, total {len(full_text)} characters")
+                return full_text[:100000]  # Limit to 100K characters
+            
+            return "[No text extracted]"
+            
+        except Exception as e:
+            logger.error(f"Error extracting text from document: {e}")
+            return "[Error extracting document text]"
