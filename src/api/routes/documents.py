@@ -172,6 +172,69 @@ async def get_download_url(
 
 
 @router.get(
+    "/cases/{case_id}/documents/{document_id}/content",
+    summary="Get document content",
+    description="Stream the raw document content (PDF bytes). Use this for client-side PDF rendering.",
+    responses={
+        404: {"model": ErrorResponse, "description": "Document not found"},
+    },
+)
+async def get_document_content(
+    case_id: str,
+    document_id: str,
+    service: DocumentService = Depends(get_document_service),
+):
+    """
+    Get the raw document content as bytes.
+    
+    This endpoint streams the document content directly, useful for
+    client-side PDF viewers that need direct access to PDF bytes
+    without CORS issues.
+    """
+    pdf_bytes = await service.get_document_content(case_id, document_id)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"inline; filename={document_id}.pdf"
+        }
+    )
+
+
+@router.get(
+    "/cases/{case_id}/documents/{document_id}/page/{page_number}",
+    summary="Get document page as image",
+    description="Render a specific page of the document as a PNG image.",
+    responses={
+        404: {"model": ErrorResponse, "description": "Document not found"},
+        400: {"model": ErrorResponse, "description": "Invalid page number"},
+    },
+)
+async def get_document_page(
+    case_id: str,
+    document_id: str,
+    page_number: int,
+    dpi: int = Query(150, ge=72, le=300, description="Resolution in DPI"),
+    service: DocumentService = Depends(get_document_service),
+):
+    """
+    Render a specific page of the document as a PNG image.
+    
+    This is useful for displaying PDF pages in browsers without
+    relying on PDF.js, ensuring all content (fonts, filled fields,
+    Chinese characters) renders correctly.
+    """
+    image_bytes = await service.get_page_image(case_id, document_id, page_number, dpi)
+    return Response(
+        content=image_bytes,
+        media_type="image/png",
+        headers={
+            "Cache-Control": "public, max-age=3600",
+        }
+    )
+
+
+@router.get(
     "/cases/{case_id}/documents/{document_id}/annotated-pdf",
     summary="Get annotated PDF with citations",
     description="Generate a PDF with bounding boxes drawn on extraction citation locations.",

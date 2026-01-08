@@ -190,6 +190,8 @@ Rules:
    - height: height of the field value text (typically 0.02 to 0.05)
    - The bbox should tightly bound the actual VALUE text, not the field label
 5. Be precise with bbox - look at where the actual value text appears on the page
+6. For name fields (applicant_name, etc.): COMBINE all name parts (Family Name/Surname + Given Names/First Names) into a single value. Example: if Family Name is "LOK" and Given Name is "WING CHING", return "LOK WING CHING"
+7. For date fields: use the format shown on the document (e.g., "3 JUN 1985")
 
 Return ONLY the JSON object, no additional text."""
         
@@ -547,7 +549,8 @@ Return ONLY the JSON object, no additional text."""
             page_images = [(1, base64_image)]
             print(f"Single image document")
         
-        # Extract from each page
+        # STEP 1: Extract entities using GPT-4 Vision FIRST
+        print(f"\n=== STEP 1: GPT-4 Vision Entity Extraction ===")
         page_results = []
         for page_num, base64_image in page_images:
             print(f"Extracting from page {page_num}...")
@@ -558,19 +561,46 @@ Return ONLY the JSON object, no additional text."""
         if len(page_results) == 1:
             # Single page - enhance with citations and precise bbox
             extraction_data = page_results[0][1]
+            
+            # STEP 2: Run Document Intelligence OCR to get precise bounding boxes for extracted values
+            print(f"\n=== STEP 2: Document Intelligence OCR for Bounding Boxes ===")
+            if self.doc_intelligence_ocr and extraction_data:
+                # Get the extracted values that need bboxes
+                extracted_values = [str(fd.get("value", "")) for fd in extraction_data.values() if fd.get("value")]
+                print(f"[DocIntelligence] Need bboxes for {len(extracted_values)} extracted values:")
+                for v in extracted_values[:5]:
+                    print(f"[DocIntelligence]   - '{v[:50]}...' " if len(v) > 50 else f"[DocIntelligence]   - '{v}'")
+                
+                try:
+                    print(f"[DocIntelligence] Running OCR on document...")
+                    self._ocr_results = await self.doc_intelligence_ocr.get_ocr_results(document_content)
+                    ocr_text_count = sum(len(lines) for lines in self._ocr_results.values())
+                    print(f"[DocIntelligence] OCR complete: {len(self._ocr_results)} pages, {ocr_text_count} text lines found")
+                except Exception as e:
+                    logger.warning(f"Document Intelligence OCR failed: {e}. Will use GPT-4 Vision bbox estimates.")
+                    print(f"[DocIntelligence] ✗ OCR failed: {e}")
+                    self._ocr_results = None
+            else:
+                if not self.doc_intelligence_ocr:
+                    print(f"[DocIntelligence] Not configured - using GPT-4 Vision bbox estimates")
+            
+            # STEP 3: Match extracted values to OCR results for precise bboxes
+            print(f"\n=== STEP 3: Matching Values to Bounding Boxes ===")
             results = {}
+            print(f"[Extraction] Processing {len(extraction_data)} fields:")
             for field_name, field_data in extraction_data.items():
                 page = field_data.get("page", 1)
                 value = field_data.get("value")
                 
-                # Get precise bounding box
+                # Get precise bounding box from Document Intelligence OCR
                 bbox_from_gpt = field_data.get("bbox")
                 bbox = self._get_precise_bbox(value, page, bbox_from_gpt)
                 
-                # Fallback to estimation
+                # Fallback to GPT estimation if OCR matching failed
                 if bbox is None:
                     location_desc = field_data.get("location", "unknown")
                     bbox = self._estimate_bounding_box(location_desc, page)
+                    print(f"[Extraction]   {field_name}: using GPT estimate (no OCR match)")
                 
                 citation = Citation(
                     type="bounding_box" if schema_version.citation_level.value in ["bounding_box", "both"] else "page",
@@ -584,11 +614,48 @@ Return ONLY the JSON object, no additional text."""
                     "confidence": field_data.get("confidence", 0.5),
                     "citations": [citation] if value is not None else []
                 }
+                
+                # Log extraction result with bbox
+                bbox_str = f"bbox=({bbox.x:.3f},{bbox.y:.3f},{bbox.width:.3f},{bbox.height:.3f})" if bbox else "bbox=None"
+                print(f"[Extraction]   {field_name}: '{value}' (conf={field_data.get('confidence', 0.5):.2f}, page={page}, {bbox_str})")
+            
             return results
         else:
-            # Multi-page - merge results
+            # Multi-page - merge results first
             print(f"Merging results from {len(page_results)} pages...")
-            return self._merge_extraction_results(page_results, schema_version)
+            
+            # STEP 2: Run Document Intelligence OCR for multi-page
+            print(f"\n=== STEP 2: Document Intelligence OCR for Bounding Boxes ===")
+            if self.doc_intelligence_ocr:
+                try:
+                    print(f"[DocIntelligence] Running OCR on document...")
+                    self._ocr_results = await self.doc_intelligence_ocr.get_ocr_results(document_content)
+                    ocr_text_count = sum(len(lines) for lines in self._ocr_results.values())
+                    print(f"[DocIntelligence] OCR complete: {len(self._ocr_results)} pages, {ocr_text_count} text lines found")
+                except Exception as e:
+                    logger.warning(f"Document Intelligence OCR failed: {e}. Will use GPT-4 Vision bbox estimates.")
+                    self._ocr_results = None
+            
+            # STEP 3: Merge and match
+            print(f"\n=== STEP 3: Merging and Matching Values to Bounding Boxes ===")
+            merged = self._merge_extraction_results(page_results, schema_version)
+            
+            # Log merged extraction results
+            print(f"\n[Extraction] Merged {len(merged)} fields from {len(page_results)} pages:")
+            for field_name, field_data in merged.items():
+                value = field_data.get("value")
+                citations = field_data.get("citations", [])
+                if citations:
+                    citation = citations[0]
+                    bbox = citation.bbox if hasattr(citation, 'bbox') else None
+                    bbox_str = f"bbox=({bbox.x:.3f},{bbox.y:.3f},{bbox.width:.3f},{bbox.height:.3f})" if bbox else "bbox=None"
+                    page = citation.page if hasattr(citation, 'page') else '?'
+                else:
+                    bbox_str = "bbox=None"
+                    page = '?'
+                print(f"[Extraction]   {field_name}: '{value}' (conf={field_data.get('confidence', 0.5):.2f}, page={page}, {bbox_str})")
+            
+            return merged
     
     def get_confidence(self, extraction_result: Dict[str, Any], field_name: str) -> float:
         """Get confidence score for a field."""

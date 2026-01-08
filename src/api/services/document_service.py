@@ -334,6 +334,86 @@ class DocumentService:
             size_bytes=document["size_bytes"],
         )
 
+    async def get_document_content(
+        self,
+        case_id: str,
+        document_id: str,
+    ) -> bytes:
+        """
+        Get raw document content as bytes.
+
+        Args:
+            case_id: Case identifier
+            document_id: Document identifier
+
+        Returns:
+            Document content as bytes
+
+        Raises:
+            NotFoundError: If document not found
+        """
+        document = await self.document_repo.get_document(document_id, case_id)
+        if not document or document.get("case_id") != case_id:
+            raise NotFoundError(f"Document {document_id} not found in case {case_id}")
+
+        blob_path = document["blob_path"]
+        return await self.storage_service.download_blob(blob_path)
+
+    async def get_page_image(
+        self,
+        case_id: str,
+        document_id: str,
+        page_number: int,
+        dpi: int = 150,
+    ) -> bytes:
+        """
+        Render a specific page of the document as a PNG image.
+
+        Args:
+            case_id: Case identifier
+            document_id: Document identifier
+            page_number: Page number (1-based)
+            dpi: Resolution in DPI
+
+        Returns:
+            PNG image bytes
+
+        Raises:
+            NotFoundError: If document not found
+            BadRequestError: If page number is invalid
+        """
+        import fitz  # PyMuPDF
+        import io
+
+        document = await self.document_repo.get_document(document_id, case_id)
+        if not document or document.get("case_id") != case_id:
+            raise NotFoundError(f"Document {document_id} not found in case {case_id}")
+
+        blob_path = document["blob_path"]
+        pdf_bytes = await self.storage_service.download_blob(blob_path)
+
+        # Open PDF and render the page
+        pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        
+        if page_number < 1 or page_number > len(pdf_doc):
+            pdf_doc.close()
+            raise BadRequestError(
+                f"Invalid page number {page_number}. Document has {len(pdf_doc)} pages."
+            )
+
+        page = pdf_doc[page_number - 1]  # 0-based index
+        
+        # Render at specified DPI
+        zoom = dpi / 72.0  # PDF default is 72 DPI
+        mat = fitz.Matrix(zoom, zoom)
+        pix = page.get_pixmap(matrix=mat)
+        
+        # Convert to PNG bytes
+        png_bytes = pix.tobytes("png")
+        
+        pdf_doc.close()
+        return png_bytes
+
     async def get_entities(
         self,
         case_id: str,
