@@ -1,0 +1,15 @@
+{
+  "summary": "The applicant, Ms. Lok Wing Ching, holds the position of Director. Her employer is registered under the business registration number 21893829. Ms. Lok's physical measurements are recorded as 174 centimeters in height and 77 kilograms in weight.",
+  "extracted_entities": {
+    "Applicant Name": "Ms LOK WING CHING",
+    "Job Title of Applicant": "DIRECTOR",
+    "Business Registration Number of Employer": "21893829",
+    "Height of Applicant": "174 cm",
+    "Weight of Applicant": "77 kg"
+  },
+  "metadata": {
+    "total_entities": 5,
+    "summary_length": 244,
+    "summary_words": 37
+  }
+}
