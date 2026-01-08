@@ -3,7 +3,9 @@
 import base64
 import io
 import json
-from typing import Any, Dict, List, Tuple
+import os
+import logging
+from typing import Any, Dict, List, Optional, Tuple
 
 from openai import AzureOpenAI, BadRequestError
 from azure.identity import DefaultAzureCredential
@@ -18,11 +20,27 @@ try:
 except ImportError:
     HAS_PYMUPDF = False
 
+try:
+    from .doc_intelligence_ocr import DocumentIntelligenceOCR, OCRLine
+    HAS_DOC_INTELLIGENCE = True
+except ImportError:
+    HAS_DOC_INTELLIGENCE = False
+
+logger = logging.getLogger(__name__)
+
 
 class AzureOpenAIVisionAdapter(ExtractionModelAdapter):
-    """Adapter for Azure OpenAI GPT-4 Vision model."""
+    """Adapter for Azure OpenAI GPT-4 Vision model with optional Document Intelligence for precise bounding boxes."""
     
-    def __init__(self, endpoint: str, api_key: str = None, deployment: str = "gpt-4-vision", api_version: str = "2024-02-15-preview"):
+    def __init__(
+        self,
+        endpoint: str,
+        api_key: str = None,
+        deployment: str = "gpt-4-vision",
+        api_version: str = "2024-02-15-preview",
+        doc_intelligence_endpoint: Optional[str] = None,
+        doc_intelligence_key: Optional[str] = None
+    ):
         """
         Initialize Azure OpenAI Vision adapter.
         
@@ -31,6 +49,8 @@ class AzureOpenAIVisionAdapter(ExtractionModelAdapter):
             api_key: API key (if None, uses DefaultAzureCredential)
             deployment: Deployment name
             api_version: Azure OpenAI API version
+            doc_intelligence_endpoint: Optional Document Intelligence endpoint for precise OCR bounding boxes
+            doc_intelligence_key: Optional Document Intelligence API key
         """
         self.endpoint = endpoint
         self.deployment = deployment
@@ -51,6 +71,36 @@ class AzureOpenAIVisionAdapter(ExtractionModelAdapter):
                 ).token,
                 api_version=api_version
             )
+        
+        # Initialize Document Intelligence OCR for precise bounding boxes
+        self.doc_intelligence_ocr = None
+        self._ocr_results: Optional[Dict[int, List]] = None
+        
+        # Check for Document Intelligence configuration
+        # Note: Parameters take priority, then fall back to env vars (for backward compat)
+        di_endpoint = doc_intelligence_endpoint or os.environ.get("DOC_INTELLIGENCE_ENDPOINT")
+        di_key = doc_intelligence_key or os.environ.get("DOC_INTELLIGENCE_KEY")
+        
+        print(f"[AzureOpenAIVisionAdapter] Document Intelligence config check:")
+        print(f"  - Endpoint passed as param: {bool(doc_intelligence_endpoint)} -> {doc_intelligence_endpoint}")
+        print(f"  - Endpoint from env DOC_INTELLIGENCE_ENDPOINT: {os.environ.get('DOC_INTELLIGENCE_ENDPOINT')}")
+        print(f"  - HAS_DOC_INTELLIGENCE package: {HAS_DOC_INTELLIGENCE}")
+        
+        if di_endpoint and HAS_DOC_INTELLIGENCE:
+            try:
+                print(f"  - Initializing Document Intelligence OCR client...")
+                self.doc_intelligence_ocr = DocumentIntelligenceOCR(
+                    endpoint=di_endpoint,
+                    api_key=di_key
+                )
+                print(f"  ✓ Document Intelligence OCR initialized: {di_endpoint}")
+            except Exception as e:
+                print(f"  ✗ Could not initialize Document Intelligence OCR: {e}")
+                logger.warning(f"Could not initialize Document Intelligence OCR: {e}. Will use GPT-4 Vision estimates.")
+        elif not di_endpoint:
+            print("  ✗ Document Intelligence endpoint NOT provided - bounding boxes will be GPT-4 estimates")
+        elif not HAS_DOC_INTELLIGENCE:
+            print("  ✗ azure-ai-documentintelligence package NOT installed")
     
     def _build_extraction_prompt(
         self,
@@ -299,6 +349,52 @@ Return ONLY the JSON object, no additional text."""
         
         return extraction_data
     
+    def _get_precise_bbox(
+        self,
+        value: Any,
+        page_hint: int,
+        bbox_from_gpt: Optional[Dict] = None
+    ) -> Optional[BoundingBox]:
+        """
+        Get precise bounding box for an extracted value.
+        
+        Uses Document Intelligence OCR if available, otherwise falls back to GPT-4 estimate.
+        
+        Args:
+            value: The extracted value to find
+            page_hint: Page number where value was found
+            bbox_from_gpt: Optional bbox estimate from GPT-4 Vision
+            
+        Returns:
+            BoundingBox with precise coordinates, or None if not found
+        """
+        # Try Document Intelligence OCR first for precise coordinates
+        if self.doc_intelligence_ocr and self._ocr_results:
+            value_str = str(value).strip() if value else ""
+            if value_str:
+                result = self.doc_intelligence_ocr.find_text_bbox(
+                    search_text=value_str,
+                    ocr_results=self._ocr_results,
+                    page_hint=page_hint
+                )
+                if result:
+                    page, x, y, width, height = result
+                    logger.debug(f"Found precise bbox for '{value_str}': page={page}, x={x:.3f}, y={y:.3f}, w={width:.3f}, h={height:.3f}")
+                    return BoundingBox(x=x, y=y, width=width, height=height)
+                else:
+                    logger.debug(f"Could not find '{value_str}' in OCR results, using GPT estimate")
+        
+        # Fall back to GPT-4 estimate
+        if bbox_from_gpt and isinstance(bbox_from_gpt, dict):
+            return BoundingBox(
+                x=float(bbox_from_gpt.get("x", 0.4)),
+                y=float(bbox_from_gpt.get("y", 0.4)),
+                width=float(bbox_from_gpt.get("width", 0.2)),
+                height=float(bbox_from_gpt.get("height", 0.05))
+            )
+        
+        return None
+    
     def _merge_extraction_results(
         self,
         page_results: List[Tuple[int, Dict[str, Any]]],
@@ -327,18 +423,12 @@ Return ONLY the JSON object, no additional text."""
                 if value is None:
                     continue
                 
-                # Use actual bbox from response if available, otherwise fall back to estimation
-                bbox_data = field_data.get("bbox")
-                if bbox_data and isinstance(bbox_data, dict):
-                    # Use actual coordinates from GPT-4 Vision response
-                    bbox = BoundingBox(
-                        x=float(bbox_data.get("x", 0.4)),
-                        y=float(bbox_data.get("y", 0.4)),
-                        width=float(bbox_data.get("width", 0.2)),
-                        height=float(bbox_data.get("height", 0.05))
-                    )
-                else:
-                    # Fall back to estimation from location description (legacy support)
+                # Get precise bounding box using Document Intelligence OCR if available
+                bbox_from_gpt = field_data.get("bbox")
+                bbox = self._get_precise_bbox(value, page_num, bbox_from_gpt)
+                
+                # Final fallback to estimation if no bbox found
+                if bbox is None:
                     location_desc = field_data.get("location", "unknown")
                     bbox = self._estimate_bounding_box(location_desc, page_num)
                 
@@ -395,6 +485,20 @@ Return ONLY the JSON object, no additional text."""
         prompt_size_kb = len(prompt) / 1024
         print(f"Prompt size: {prompt_size_kb:.2f} KB")
         
+        # Run Document Intelligence OCR first for precise bounding boxes
+        if self.doc_intelligence_ocr:
+            try:
+                print("Running Document Intelligence OCR for precise bounding boxes...")
+                import asyncio
+                # Run synchronously in async context
+                loop = asyncio.get_event_loop()
+                self._ocr_results = await self.doc_intelligence_ocr.get_ocr_results(document_content)
+                ocr_text_count = sum(len(lines) for lines in self._ocr_results.values())
+                print(f"OCR complete: {len(self._ocr_results)} pages, {ocr_text_count} text lines found")
+            except Exception as e:
+                logger.warning(f"Document Intelligence OCR failed: {e}. Will use GPT-4 Vision estimates.")
+                self._ocr_results = None
+        
         # Check if PDF and convert to images
         if self._is_pdf(document_content):
             print(f"PDF detected, converting to per-page images...")
@@ -419,26 +523,33 @@ Return ONLY the JSON object, no additional text."""
         
         # Merge results from all pages
         if len(page_results) == 1:
-            # Single page - enhance with citations
+            # Single page - enhance with citations and precise bbox
             extraction_data = page_results[0][1]
             results = {}
             for field_name, field_data in extraction_data.items():
-                location_desc = field_data.get("location", "unknown")
                 page = field_data.get("page", 1)
+                value = field_data.get("value")
                 
-                bbox = self._estimate_bounding_box(location_desc, page)
+                # Get precise bounding box
+                bbox_from_gpt = field_data.get("bbox")
+                bbox = self._get_precise_bbox(value, page, bbox_from_gpt)
+                
+                # Fallback to estimation
+                if bbox is None:
+                    location_desc = field_data.get("location", "unknown")
+                    bbox = self._estimate_bounding_box(location_desc, page)
                 
                 citation = Citation(
                     type="bounding_box" if schema_version.citation_level.value in ["bounding_box", "both"] else "page",
                     page=page,
                     bbox=bbox if schema_version.citation_level.value in ["bounding_box", "both"] else None,
-                    text_snippet=field_data.get("value", "")[:500] if field_data.get("value") else None
+                    text_snippet=str(value)[:500] if value else None
                 )
                 
                 results[field_name] = {
-                    "value": field_data.get("value"),
+                    "value": value,
                     "confidence": field_data.get("confidence", 0.5),
-                    "citations": [citation] if field_data.get("value") is not None else []
+                    "citations": [citation] if value is not None else []
                 }
             return results
         else:

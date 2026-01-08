@@ -18,6 +18,7 @@ from ..models import (
 from ..repositories import ExtractionRepository, SchemaRepository, ExtractionModelRepository
 from ..adapters.base import ExtractionModelAdapter
 from ..adapters import AzureOpenAIVisionAdapter
+from ..config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -154,11 +155,23 @@ class SchemaExtractionService:
                 logger.info(f"    endpoint: {db_model.endpoint}")
                 logger.info(f"    deployment/version: {db_model.version}")
                 logger.info(f"    api_version: {db_model.api_version}")
+                
+                # Get Document Intelligence config for precise bounding boxes
+                config = get_config()
+                di_endpoint = config.doc_intelligence_endpoint
+                di_key = config.doc_intelligence_key
+                
+                print(f"[SchemaExtractionService] Document Intelligence config from ExtractionConfig:")
+                print(f"  - doc_intelligence_endpoint: {di_endpoint}")
+                print(f"  - doc_intelligence_key: {'***' if di_key else 'None (using DefaultAzureCredential)'}")
+                
                 adapter = AzureOpenAIVisionAdapter(
                     endpoint=db_model.endpoint,
                     api_key=None,  # Use Azure AD
                     deployment=db_model.version,
-                    api_version=db_model.api_version or "2024-02-15-preview"
+                    api_version=db_model.api_version or "2024-02-15-preview",
+                    doc_intelligence_endpoint=di_endpoint,
+                    doc_intelligence_key=di_key
                 )
             else:
                 logger.error(f"  ✗ Unsupported model type: {db_model.type}")

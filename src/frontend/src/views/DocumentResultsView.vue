@@ -83,17 +83,21 @@
                 color="primary"
                 class="w-100"
               >
+                <v-btn value="interactive" class="flex-grow-1" size="small">
+                  <v-icon start size="small">mdi-cursor-default-click</v-icon>
+                  Interactive
+                </v-btn>
                 <v-btn value="annotated" class="flex-grow-1" size="small">
                   <v-icon start size="small">mdi-pencil-box-outline</v-icon>
-                  Annotated PDF
+                  Annotated
                 </v-btn>
                 <v-btn value="original" class="flex-grow-1" size="small">
                   <v-icon start size="small">mdi-file-pdf-box</v-icon>
-                  Original PDF
+                  Original
                 </v-btn>
               </v-btn-toggle>
-              <p class="text-caption text-grey mt-2 mb-0" v-if="pdfViewMode === 'annotated'">
-                Click on a field to highlight its location in the PDF
+              <p class="text-caption text-grey mt-2 mb-0" v-if="pdfViewMode === 'annotated' || pdfViewMode === 'interactive'">
+                Hover to highlight, click to scroll to location in the PDF
               </p>
             </v-card-text>
             
@@ -112,6 +116,8 @@
                   :style="getFieldStyle(field)"
                   rounded
                   @click="toggleFieldHighlight(field)"
+                  @mouseenter="handleFieldHover(field)"
+                  @mouseleave="handleFieldHover(null)"
                 >
                   <template v-slot:prepend>
                     <v-icon 
@@ -170,48 +176,6 @@
                   </template>
                 </v-list-item>
               </v-list>
-              
-              <!-- Color Legend -->
-              <v-expansion-panels variant="accordion" class="mt-3" v-if="pdfViewMode === 'annotated'">
-                <v-expansion-panel>
-                  <v-expansion-panel-title class="py-2">
-                    <v-icon size="small" class="mr-2">mdi-palette</v-icon>
-                    <span class="text-body-2">Color Legend</span>
-                  </v-expansion-panel-title>
-                  <v-expansion-panel-text>
-                    <div class="legend-items">
-                      <div 
-                        v-for="(info, fieldName) in fieldColors" 
-                        :key="fieldName"
-                        class="legend-item d-flex align-center mb-1"
-                      >
-                        <div 
-                          class="color-swatch mr-2" 
-                          :style="{ backgroundColor: info.hex }"
-                        />
-                        <span class="text-caption">{{ formatFieldName(String(fieldName)) }}</span>
-                        <v-chip 
-                          v-if="info.needs_review" 
-                          size="x-small" 
-                          color="warning" 
-                          class="ml-1"
-                        >
-                          Review
-                        </v-chip>
-                      </div>
-                      <v-divider class="my-2" />
-                      <div class="legend-item d-flex align-center mb-1">
-                        <div class="color-swatch mr-2" style="background-color: #ffcc00;" />
-                        <span class="text-caption text-grey">Needs Review (dashed)</span>
-                      </div>
-                      <div class="legend-item d-flex align-center">
-                        <div class="color-swatch mr-2" style="background-color: #ff8000;" />
-                        <span class="text-caption text-grey">Low Confidence (&lt;70%)</span>
-                      </div>
-                    </div>
-                  </v-expansion-panel-text>
-                </v-expansion-panel>
-              </v-expansion-panels>
               
               <!-- Review Warning -->
               <v-alert 
@@ -337,16 +301,17 @@
           <v-card class="pdf-viewer-card">
             <v-card-title class="d-flex align-center py-2">
               <v-icon class="mr-2">mdi-file-pdf-box</v-icon>
-              {{ pdfViewMode === 'annotated' ? 'Annotated Document' : 'Document Preview' }}
+              {{ pdfViewModeTitle }}
               <v-chip 
-                v-if="pdfViewMode === 'annotated' && highlightedField" 
+                v-if="(pdfViewMode === 'annotated' || pdfViewMode === 'interactive') && (highlightedField || hoveredField)" 
                 size="small" 
-                color="primary"
+                :color="hoveredField ? 'secondary' : 'primary'"
                 class="ml-2"
-                closable
+                :closable="!!highlightedField"
                 @click:close="clearHighlight"
               >
-                {{ formatFieldName(highlightedField) }}
+                <v-icon v-if="hoveredField" start size="x-small">mdi-cursor-default</v-icon>
+                {{ formatFieldName(hoveredField || highlightedField || '') }}
               </v-chip>
               <v-spacer />
               <v-btn 
@@ -367,40 +332,65 @@
             </v-card-title>
             <v-divider />
             <v-card-text class="pa-0">
-              <div v-if="isLoadingPdf" class="pdf-loading d-flex align-center justify-center">
-                <v-progress-circular indeterminate color="primary" />
-                <span class="ml-3">{{ pdfViewMode === 'annotated' ? 'Generating annotated PDF...' : 'Loading document...' }}</span>
-              </div>
-              <div v-else-if="pdfError" class="pdf-error d-flex flex-column align-center justify-center">
-                <v-icon size="48" color="grey">mdi-file-alert-outline</v-icon>
-                <p class="text-body-2 text-grey mt-2">{{ pdfError }}</p>
-                <v-btn 
-                  variant="tonal" 
-                  color="primary"
-                  class="mt-2"
-                  prepend-icon="mdi-refresh"
-                  @click="loadPdfPreview"
-                >
-                  Retry
-                </v-btn>
-              </div>
-              <iframe 
-                v-else-if="currentPdfUrl"
-                :key="pdfKey"
-                :src="currentPdfUrl"
-                class="pdf-iframe"
-                frameborder="0"
-              />
-              <div v-else class="pdf-placeholder d-flex align-center justify-center">
-                <v-btn 
-                  variant="tonal" 
-                  color="primary"
-                  prepend-icon="mdi-eye"
-                  @click="loadPdfPreview"
-                >
-                  Load Preview
-                </v-btn>
-              </div>
+              <!-- Interactive PDF Viewer with hover highlights -->
+              <template v-if="pdfViewMode === 'interactive'">
+                <div v-if="!originalPdfBlobUrl" class="pdf-loading d-flex align-center justify-center">
+                  <v-progress-circular indeterminate color="primary" />
+                  <span class="ml-3">Loading document...</span>
+                </div>
+                <pdf-viewer-with-highlights
+                  v-else
+                  ref="interactivePdfViewerRef"
+                  :pdf-url="originalPdfBlobUrl"
+                  :fields="extractedFields"
+                  :field-colors="fieldColors"
+                  :highlighted-field="highlightedField"
+                  :hovered-field="hoveredField"
+                  @hover-field="handlePdfFieldHover"
+                  @click-field="handlePdfFieldClick"
+                  @loaded="onInteractivePdfLoaded"
+                  @error="onInteractivePdfError"
+                  @fallback-to-annotated="pdfViewMode = 'annotated'"
+                />
+              </template>
+              
+              <!-- Annotated/Original PDF iframe view -->
+              <template v-if="pdfViewMode !== 'interactive'">
+                <div v-if="isLoadingPdf" class="pdf-loading d-flex align-center justify-center">
+                  <v-progress-circular indeterminate color="primary" />
+                  <span class="ml-3">{{ pdfViewMode === 'annotated' ? 'Generating annotated PDF...' : 'Loading document...' }}</span>
+                </div>
+                <div v-else-if="pdfError" class="pdf-error d-flex flex-column align-center justify-center">
+                  <v-icon size="48" color="grey">mdi-file-alert-outline</v-icon>
+                  <p class="text-body-2 text-grey mt-2">{{ pdfError }}</p>
+                  <v-btn 
+                    variant="tonal" 
+                    color="primary"
+                    class="mt-2"
+                    prepend-icon="mdi-refresh"
+                    @click="loadPdfPreview"
+                  >
+                    Retry
+                  </v-btn>
+                </div>
+                <iframe 
+                  v-else-if="currentPdfUrl"
+                  :key="pdfKey"
+                  :src="currentPdfUrl"
+                  class="pdf-iframe"
+                  frameborder="0"
+                />
+                <div v-else class="pdf-placeholder d-flex align-center justify-center">
+                  <v-btn 
+                    variant="tonal" 
+                    color="primary"
+                    prepend-icon="mdi-eye"
+                    @click="loadPdfPreview"
+                  >
+                    Load Preview
+                  </v-btn>
+                </div>
+              </template>
             </v-card-text>
           </v-card>
         </v-col>
@@ -425,6 +415,7 @@ import { useDocumentsStore } from '@/stores/documents'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import ErrorMessage from '@/components/common/ErrorMessage.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
+import PdfViewerWithHighlights from '@/components/pdf/PdfViewerWithHighlights.vue'
 import { formatConfidence, getConfidenceColor } from '@/utils/formatters'
 import { DOCUMENT_TYPE_LABELS } from '@/utils/constants'
 import apiClient from '@/services/api'
@@ -443,15 +434,18 @@ const error = computed(() => documentsStore.error)
 const isDownloading = ref(false)
 
 // PDF Viewer state
-const pdfViewMode = ref<'annotated' | 'original'>('annotated')
-const originalPdfUrl = ref<string | null>(null)
+const pdfViewMode = ref<'interactive' | 'annotated' | 'original'>('interactive')
+const originalPdfUrl = ref<string | null>(null)  // Direct Azure Blob URL (for iframe)
+const originalPdfBlobUrl = ref<string | null>(null)  // Blob URL for PDF.js (no CORS issues)
 const annotatedPdfUrl = ref<string | null>(null)
 const isLoadingPdf = ref(false)
 const pdfError = ref<string | null>(null)
 const pdfKey = ref(0) // Force iframe refresh
+const interactivePdfViewerRef = ref<InstanceType<typeof PdfViewerWithHighlights> | null>(null)
 
-// Field highlighting
+// Field highlighting and hovering
 const highlightedField = ref<string | null>(null)
+const hoveredField = ref<string | null>(null)
 const fieldColors = ref<Record<string, FieldColorInfo>>({})
 
 // Computed properties
@@ -460,6 +454,14 @@ const currentPdfUrl = computed(() => {
     return annotatedPdfUrl.value
   }
   return originalPdfUrl.value
+})
+
+const pdfViewModeTitle = computed(() => {
+  switch (pdfViewMode.value) {
+    case 'interactive': return 'Interactive View'
+    case 'annotated': return 'Annotated Document'
+    default: return 'Document Preview'
+  }
 })
 
 const hasExtractedFields = computed(() => {
@@ -536,10 +538,12 @@ watch(pdfViewMode, async () => {
     if (!annotatedPdfUrl.value) {
       await loadAnnotatedPdf()
     }
-  } else {
+  } else if (pdfViewMode.value === 'original') {
     // Clear highlight when switching to original
     highlightedField.value = null
+    hoveredField.value = null
   }
+  // Interactive mode uses originalPdfUrl with client-side overlays
 })
 
 // Watch for highlighted field changes
@@ -581,20 +585,52 @@ function formatDate(dateString?: string | null): string {
 }
 
 function getFieldStyle(field: ExtractedFieldResult) {
-  if (highlightedField.value === field.field_name) {
+  const isHighlighted = highlightedField.value === field.field_name
+  
+  if (isHighlighted) {
     const color = fieldColors.value[field.field_name]
     if (color) {
       return {
         borderLeft: `4px solid ${color.hex}`,
-        backgroundColor: `${color.hex}15`,
+        backgroundColor: `${color.hex}25`,
       }
     }
     return {
       borderLeft: '4px solid #1976d2',
-      backgroundColor: '#1976d215',
+      backgroundColor: '#1976d225',
     }
   }
   return {}
+}
+
+// Handle hover on field in the extraction list
+function handleFieldHover(field: ExtractedFieldResult | null) {
+  if (field && field.citations?.length) {
+    hoveredField.value = field.field_name
+  } else {
+    hoveredField.value = null
+  }
+}
+
+// Handle hover from PDF viewer
+function handlePdfFieldHover(fieldName: string | null) {
+  hoveredField.value = fieldName
+}
+
+// Handle click from PDF viewer
+function handlePdfFieldClick(fieldName: string) {
+  highlightedField.value = fieldName
+}
+
+// Interactive PDF viewer events
+function onInteractivePdfLoaded() {
+  console.log('Interactive PDF viewer loaded')
+}
+
+function onInteractivePdfError(errorMsg: string) {
+  console.error('Interactive PDF viewer error:', errorMsg)
+  // Don't auto-switch, let user see the error and decide
+  pdfError.value = errorMsg
 }
 
 function toggleFieldHighlight(field: ExtractedFieldResult) {
@@ -604,9 +640,13 @@ function toggleFieldHighlight(field: ExtractedFieldResult) {
     highlightedField.value = null
   } else {
     highlightedField.value = field.field_name
-    // Switch to annotated view if not already
-    if (pdfViewMode.value !== 'annotated') {
-      pdfViewMode.value = 'annotated'
+    // If in interactive mode, scroll to the field
+    if (pdfViewMode.value === 'interactive' && interactivePdfViewerRef.value) {
+      interactivePdfViewerRef.value.scrollToField(field.field_name)
+    }
+    // Switch to interactive or annotated view if in original
+    if (pdfViewMode.value === 'original') {
+      pdfViewMode.value = 'interactive'
     }
   }
 }
@@ -649,11 +689,14 @@ async function loadPdfPreview() {
     isLoadingPdf.value = true
     pdfError.value = null
     
-    // Load original PDF URL
+    // Load original PDF URL (for iframe views)
     const response = await apiClient.get(`/cases/${props.caseId}/documents/${props.documentId}/download`)
     if (response.data?.download_url) {
       originalPdfUrl.value = response.data.download_url
     }
+    
+    // Also load PDF as blob for interactive view (avoids CORS issues)
+    await loadPdfAsBlob()
     
     // Also load annotated PDF if we have extraction results
     if (hasExtractedFields.value && pdfViewMode.value === 'annotated') {
@@ -664,6 +707,29 @@ async function loadPdfPreview() {
     pdfError.value = 'Failed to load document. Please try again.'
   } finally {
     isLoadingPdf.value = false
+  }
+}
+
+async function loadPdfAsBlob() {
+  try {
+    // Fetch PDF through backend API as blob (bypasses CORS)
+    const response = await apiClient.get(
+      `/cases/${props.caseId}/documents/${props.documentId}/content`,
+      { responseType: 'blob' }
+    )
+    
+    // Create blob URL
+    const blob = new Blob([response.data], { type: 'application/pdf' })
+    
+    // Revoke previous blob URL if exists
+    if (originalPdfBlobUrl.value) {
+      URL.revokeObjectURL(originalPdfBlobUrl.value)
+    }
+    
+    originalPdfBlobUrl.value = URL.createObjectURL(blob)
+  } catch (err) {
+    console.warn('Failed to load PDF as blob:', err)
+    // Not critical - interactive view will show error and user can use annotated view
   }
 }
 
@@ -729,6 +795,9 @@ onUnmounted(() => {
   if (annotatedPdfUrl.value) {
     URL.revokeObjectURL(annotatedPdfUrl.value)
   }
+  if (originalPdfBlobUrl.value) {
+    URL.revokeObjectURL(originalPdfBlobUrl.value)
+  }
 })
 </script>
 
@@ -787,21 +856,5 @@ onUnmounted(() => {
   height: calc(100vh - 200px);
   min-height: 600px;
   background: #f5f5f5;
-}
-
-/* Color Legend */
-.legend-items {
-  padding: 4px 0;
-}
-
-.legend-item {
-  font-size: 0.85rem;
-}
-
-.color-swatch {
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
 }
 </style>
