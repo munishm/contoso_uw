@@ -334,23 +334,19 @@
             <v-card-text class="pa-0">
               <!-- Interactive PDF Viewer with hover highlights -->
               <template v-if="pdfViewMode === 'interactive'">
-                <div v-if="!originalPdfBlobUrl" class="pdf-loading d-flex align-center justify-center">
-                  <v-progress-circular indeterminate color="primary" />
-                  <span class="ml-3">Loading document...</span>
-                </div>
                 <pdf-viewer-with-highlights
-                  v-else
                   ref="interactivePdfViewerRef"
-                  :pdf-url="originalPdfBlobUrl"
+                  :case-id="caseId"
+                  :document-id="documentId"
                   :fields="extractedFields"
                   :field-colors="fieldColors"
                   :highlighted-field="highlightedField"
                   :hovered-field="hoveredField"
+                  :num-pages="documentNumPages"
                   @hover-field="handlePdfFieldHover"
                   @click-field="handlePdfFieldClick"
                   @loaded="onInteractivePdfLoaded"
                   @error="onInteractivePdfError"
-                  @fallback-to-annotated="pdfViewMode = 'annotated'"
                 />
               </template>
               
@@ -466,6 +462,21 @@ const pdfViewModeTitle = computed(() => {
 
 const hasExtractedFields = computed(() => {
   return extractedFields.value.length > 0
+})
+
+// Compute the number of pages from citation data
+const documentNumPages = computed(() => {
+  let maxPage = 0
+  for (const field of extractedFields.value) {
+    if (field.citations?.length) {
+      for (const citation of field.citations) {
+        if (citation.page > maxPage) {
+          maxPage = citation.page
+        }
+      }
+    }
+  }
+  return maxPage || 3 // Default to 3 if no citations
 })
 
 // Computed properties for extraction
