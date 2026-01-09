@@ -50,6 +50,53 @@ export interface ExtractedFieldResult {
   model_source?: string
 }
 
+// Evaluation types
+export interface CorrectnessEvaluation {
+  score: number
+  fuzzy_score?: number
+  extraction_correct: boolean
+  normalized_entity?: string
+  cleaned_source_length?: number
+}
+
+export interface CompletenessEvaluation {
+  score: number
+  is_complete: boolean
+  missing_info?: string[]
+  reasoning?: string
+}
+
+export interface FieldEvaluationResult {
+  field_name: string
+  extracted_value: any
+  evaluations: {
+    correctness: CorrectnessEvaluation | null
+    completeness: CompletenessEvaluation | null
+  }
+  summary: {
+    overall_score: number
+    evaluators_run: string[]
+    warnings: string[]
+    errors: string[]
+  }
+}
+
+export interface EvaluationAggregateSummary {
+  average_overall_score: number
+  average_correctness_score: number
+  average_completeness_score: number | null
+  fields_correct: number
+  fields_complete: number
+  evaluators_run: string[]
+  failed_evaluations: number
+}
+
+export interface EvaluationResults {
+  total_fields: number
+  results: FieldEvaluationResult[]
+  aggregate_summary: EvaluationAggregateSummary
+}
+
 export interface DocumentExtractionResult {
   extraction_id?: string
   document_type_id?: string
@@ -62,6 +109,7 @@ export interface DocumentExtractionResult {
   needs_review: boolean
   extraction_started_at?: string
   extraction_completed_at?: string
+  evaluation?: EvaluationResults | null
 }
 
 // Field color info for annotated PDF legend

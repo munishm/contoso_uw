@@ -553,7 +553,7 @@ Return ONLY the JSON object, no additional text."""
         print(f"\n=== STEP 1: GPT-4 Vision Entity Extraction ===")
         page_results = []
         for page_num, base64_image in page_images:
-            print(f"Extracting from page {page_num}...")
+            print(f"Extracting from page {page_num}... ")
             extraction_data = await self._extract_from_image(base64_image, prompt, page_num)
             page_results.append((page_num, extraction_data))
         

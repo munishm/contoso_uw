@@ -119,25 +119,6 @@
                   @mouseenter="handleFieldHover(field)"
                   @mouseleave="handleFieldHover(null)"
                 >
-                  <template v-slot:prepend>
-                    <v-icon 
-                      v-if="field.needs_review" 
-                      color="warning" 
-                      size="small"
-                      class="mr-2"
-                    >
-                      mdi-alert-circle
-                    </v-icon>
-                    <v-icon 
-                      v-else 
-                      color="success" 
-                      size="small"
-                      class="mr-2"
-                    >
-                      mdi-check-circle
-                    </v-icon>
-                  </template>
-                  
                   <v-list-item-title class="field-name text-caption text-grey-darken-1 text-uppercase">
                     {{ formatFieldName(field.field_name) }}
                   </v-list-item-title>
@@ -148,13 +129,35 @@
                   
                   <template v-slot:append>
                     <div class="d-flex flex-column align-end">
-                      <v-chip 
-                        :color="getConfidenceColor(field.confidence)" 
-                        size="x-small"
-                        class="mb-1"
-                      >
-                        {{ formatConfidence(field.confidence) }}
-                      </v-chip>
+                      <!-- Evaluation Indicators -->
+                      <div class="d-flex gap-1 mb-1" v-if="getFieldEvaluation(field.field_name)">
+                        <v-tooltip location="left">
+                          <template v-slot:activator="{ props }">
+                            <v-chip 
+                              v-bind="props"
+                              :color="getEvaluationColor(getFieldEvaluation(field.field_name)?.evaluations.correctness?.score)"
+                              size="x-small"
+                              density="compact"
+                            >
+                              {{ formatPercentage(getFieldEvaluation(field.field_name)?.evaluations.correctness?.score) }}
+                            </v-chip>
+                          </template>
+                          <span>Correctness</span>
+                        </v-tooltip>
+                        <v-tooltip location="left" v-if="getFieldEvaluation(field.field_name)?.evaluations.completeness">
+                          <template v-slot:activator="{ props }">
+                            <v-chip 
+                              v-bind="props"
+                              :color="getEvaluationColor(getFieldEvaluation(field.field_name)?.evaluations.completeness?.score)"
+                              size="x-small"
+                              density="compact"
+                            >
+                              {{ formatPercentage(getFieldEvaluation(field.field_name)?.evaluations.completeness?.score) }}
+                            </v-chip>
+                          </template>
+                          <span>Completeness</span>
+                        </v-tooltip>
+                      </div>
                       <div class="d-flex align-center">
                         <v-tooltip v-if="field.citations?.length" location="left">
                           <template v-slot:activator="{ props }">
@@ -222,6 +225,128 @@
                 No extraction data available for this document
               </v-alert>
             </v-card-text>
+          </v-card>
+
+          <!-- Evaluation Metrics Card -->
+          <v-card class="mb-4" v-if="document.extraction?.evaluation">
+            <v-card-title class="d-flex align-center">
+              <v-icon class="mr-2" color="primary">mdi-clipboard-check-outline</v-icon>
+              Evaluation Metrics
+              <v-spacer />
+              <v-btn 
+                icon 
+                size="x-small" 
+                variant="text"
+                @click="evaluationExpanded = !evaluationExpanded"
+              >
+                <v-icon>{{ evaluationExpanded ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
+              </v-btn>
+            </v-card-title>
+            
+            <v-expand-transition>
+              <div v-show="evaluationExpanded">
+                <v-card-text>
+                  <!-- Aggregate Summary -->
+                  <div class="mb-4">
+                    <v-row dense>
+                      <!-- Overall Score -->
+                      <v-col cols="12">
+                        <div class="d-flex align-center mb-2">
+                          <span class="text-caption text-grey mr-2">Overall Quality</span>
+                          <v-spacer />
+                          <v-chip 
+                            :color="getEvaluationColor(document.extraction.evaluation.aggregate_summary.average_overall_score)"
+                            size="small"
+                          >
+                            {{ formatPercentage(document.extraction.evaluation.aggregate_summary.average_overall_score) }}
+                          </v-chip>
+                        </div>
+                        <v-progress-linear
+                          :model-value="document.extraction.evaluation.aggregate_summary.average_overall_score * 100"
+                          :color="getEvaluationColor(document.extraction.evaluation.aggregate_summary.average_overall_score)"
+                          height="8"
+                          rounded
+                        />
+                      </v-col>
+                      
+                      <!-- Correctness Score -->
+                      <v-col cols="12">
+                        <div class="d-flex align-center mb-2">
+                          <v-icon size="small" class="mr-1">mdi-check-circle</v-icon>
+                          <span class="text-caption text-grey mr-2">Correctness</span>
+                          <v-spacer />
+                          <v-chip 
+                            :color="getEvaluationColor(document.extraction.evaluation.aggregate_summary.average_correctness_score)"
+                            size="small"
+                          >
+                            {{ formatPercentage(document.extraction.evaluation.aggregate_summary.average_correctness_score) }}
+                          </v-chip>
+                        </div>
+                        <v-progress-linear
+                          :model-value="document.extraction.evaluation.aggregate_summary.average_correctness_score * 100"
+                          :color="getEvaluationColor(document.extraction.evaluation.aggregate_summary.average_correctness_score)"
+                          height="8"
+                          rounded
+                        />
+                      </v-col>
+                      
+                      <!-- Completeness Score -->
+                      <v-col cols="12" v-if="document.extraction.evaluation.aggregate_summary.average_completeness_score !== null">
+                        <div class="d-flex align-center mb-2">
+                          <v-icon size="small" class="mr-1">mdi-format-list-checks</v-icon>
+                          <span class="text-caption text-grey mr-2">Completeness</span>
+                          <v-spacer />
+                          <v-chip 
+                            :color="getEvaluationColor(document.extraction.evaluation.aggregate_summary.average_completeness_score)"
+                            size="small"
+                          >
+                            {{ formatPercentage(document.extraction.evaluation.aggregate_summary.average_completeness_score) }}
+                          </v-chip>
+                        </div>
+                        <v-progress-linear
+                          :model-value="document.extraction.evaluation.aggregate_summary.average_completeness_score * 100"
+                          :color="getEvaluationColor(document.extraction.evaluation.aggregate_summary.average_completeness_score)"
+                          height="8"
+                          rounded
+                        />
+                      </v-col>
+                    </v-row>
+                  </div>
+                  
+                  <!-- Statistics -->
+                  <v-divider class="mb-3" />
+                  <v-row dense class="text-center">
+                    <v-col cols="4">
+                      <div class="text-h6 font-weight-bold">{{ document.extraction.evaluation.total_fields }}</div>
+                      <div class="text-caption text-grey">Fields Evaluated</div>
+                    </v-col>
+                    <v-col cols="4">
+                      <div class="text-h6 font-weight-bold text-success">
+                        {{ document.extraction.evaluation.aggregate_summary.fields_correct }}
+                      </div>
+                      <div class="text-caption text-grey">Correct</div>
+                    </v-col>
+                    <v-col cols="4" v-if="document.extraction.evaluation.aggregate_summary.average_completeness_score !== null">
+                      <div class="text-h6 font-weight-bold text-info">
+                        {{ document.extraction.evaluation.aggregate_summary.fields_complete }}
+                      </div>
+                      <div class="text-caption text-grey">Complete</div>
+                    </v-col>
+                  </v-row>
+                  
+                  <!-- Warnings -->
+                  <v-alert 
+                    v-if="document.extraction.evaluation.aggregate_summary.failed_evaluations > 0"
+                    type="warning" 
+                    variant="tonal"
+                    density="compact"
+                    class="mt-3"
+                  >
+                    {{ document.extraction.evaluation.aggregate_summary.failed_evaluations }} evaluation(s) failed
+                  </v-alert>
+                </v-card-text>
+              </div>
+            </v-expand-transition>
           </v-card>
 
           <!-- Document Info Card -->
@@ -415,7 +540,7 @@ import PdfViewerWithHighlights from '@/components/pdf/PdfViewerWithHighlights.vu
 import { formatConfidence, getConfidenceColor } from '@/utils/formatters'
 import { DOCUMENT_TYPE_LABELS } from '@/utils/constants'
 import apiClient from '@/services/api'
-import type { ExtractedFieldResult, FieldColorInfo } from '@/types/document'
+import type { ExtractedFieldResult, FieldColorInfo, FieldEvaluationResult } from '@/types/document'
 
 const props = defineProps<{
   caseId: string
@@ -443,6 +568,9 @@ const interactivePdfViewerRef = ref<InstanceType<typeof PdfViewerWithHighlights>
 const highlightedField = ref<string | null>(null)
 const hoveredField = ref<string | null>(null)
 const fieldColors = ref<Record<string, FieldColorInfo>>({})
+
+// Evaluation state
+const evaluationExpanded = ref(true)
 
 // Computed properties
 const currentPdfUrl = computed(() => {
@@ -593,6 +721,29 @@ function formatDate(dateString?: string | null): string {
   } catch {
     return dateString
   }
+}
+
+// Evaluation helper functions
+function getFieldEvaluation(fieldName: string) {
+  if (!document.value?.extraction?.evaluation?.results) return null
+  return document.value.extraction.evaluation.results.find(r => r.field_name === fieldName)
+}
+
+function getEvaluationColor(score: number | null | undefined): string {
+  if (score === null || score === undefined) return 'grey'
+  if (score >= 0.8) return 'success'
+  if (score >= 0.5) return 'warning'
+  return 'error'
+}
+
+function formatScore(score: number | null | undefined): string {
+  if (score === null || score === undefined) return '—'
+  return score.toFixed(2)
+}
+
+function formatPercentage(score: number | null | undefined): string {
+  if (score === null || score === undefined) return '—'
+  return `${(score * 100).toFixed(0)}%`
 }
 
 function getFieldStyle(field: ExtractedFieldResult) {
@@ -847,6 +998,11 @@ onUnmounted(() => {
 
 .field-value {
   color: #1a1a1a;
+}
+
+/* Evaluation chip spacing */
+.gap-1 {
+  gap: 4px;
 }
 
 .pdf-viewer-card {

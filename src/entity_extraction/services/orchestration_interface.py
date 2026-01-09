@@ -133,6 +133,9 @@ async def extract_document_for_workflow(
         model_repo=model_repo
     )
     
+    # Log evaluation status
+    logger.info(f"  Evaluation status: enable_evaluation={extraction_service.enable_evaluation}, evaluation_service={extraction_service.evaluation_service is not None}")
+    
     try:
         # Perform extraction
         logger.info(f"  Calling extraction_service.extract_document()...")
@@ -248,7 +251,7 @@ def _format_for_workflow(extraction: ExtractionResult) -> Dict[str, Any]:
         for field in extraction.fields
     ]
     
-    return {
+    result = {
         "extraction_id": str(extraction.id),
         "document_id": extraction.document_id,
         "status": extraction.status.value,
@@ -258,6 +261,12 @@ def _format_for_workflow(extraction: ExtractionResult) -> Dict[str, Any]:
         "processing_time_ms": extraction.processing_duration_ms,
         "error_message": extraction.error_message
     }
+    
+    # Include evaluation if present
+    if hasattr(extraction, 'evaluation') and extraction.evaluation:
+        result["evaluation"] = extraction.evaluation
+    
+    return result
 
 
 async def get_extraction_status(extraction_id: str) -> Dict[str, Any]:

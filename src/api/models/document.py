@@ -72,6 +72,7 @@ class DocumentExtractionResult(BaseModel):
     needs_review: bool = Field(default=False, description="Whether any field needs human review")
     extraction_started_at: Optional[datetime] = Field(None, description="When extraction started")
     extraction_completed_at: Optional[datetime] = Field(None, description="When extraction completed")
+    evaluation: Optional[dict] = Field(None, description="Evaluation results if evaluation was performed")
 
 
 # =============================================================================

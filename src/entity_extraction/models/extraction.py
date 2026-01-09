@@ -69,6 +69,7 @@ class ExtractionResult(BaseModel):
     error_message: Optional[str] = Field(None, description="Error details if failed")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Start timestamp")
     completed_at: Optional[datetime] = Field(None, description="Completion timestamp")
+    evaluation: Optional[dict[str, Any]] = Field(None, description="Evaluation results if evaluation was performed")
     
     model_config = ConfigDict(
         json_schema_extra={

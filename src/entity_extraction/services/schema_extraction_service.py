@@ -19,15 +19,10 @@ from ..repositories import ExtractionRepository, SchemaRepository, ExtractionMod
 from ..adapters.base import ExtractionModelAdapter
 from ..adapters import AzureOpenAIVisionAdapter
 from ..config import get_config
+from src.evaluation.entity_extraction.evaluation_service import EvaluationService
 
-# Import evaluation service
-try:
-    from src.evaluation.entity_extraction.evaluation_service import EvaluationService
-    EVALUATION_AVAILABLE = True
-except ImportError:
-    EVALUATION_AVAILABLE = False
-
-# Import Azure Document Intelligence
+EVALUATION_AVAILABLE = True
+# Import Azure Document Intelligence 
 try:
     from azure.ai.documentintelligence import DocumentIntelligenceClient
     HAS_DOC_INTELLIGENCE = True
@@ -56,32 +51,43 @@ class SchemaExtractionService:
             extraction_repo: Repository for result storage
             model_repo: Repository for model registry
             adapters: Dictionary of model adapters (name -> adapter instance)
-            enable_evaluation: Whether to run batch evaluation after extraction
+            enable_evaluation: Whether to run batch evaluation after extraction (default: True)
         """
         self.schema_repo = schema_repo
         self.extraction_repo = extraction_repo
         self.model_repo = model_repo
         self.adapters = adapters or {}
-        self.enable_evaluation = enable_evaluation and EVALUATION_AVAILABLE
         
-        # Initialize evaluation service if enabled
+        # Always enable evaluation if available (ignore parameter)
+        self.enable_evaluation = EVALUATION_AVAILABLE
+        print(f"[SchemaExtractionService.__init__] EVALUATION_AVAILABLE={EVALUATION_AVAILABLE}")
+        print(f"[SchemaExtractionService.__init__] enable_evaluation={self.enable_evaluation}")
+        
+        # Initialize evaluation service if available
         self.evaluation_service = None
-        if self.enable_evaluation:
+        if EVALUATION_AVAILABLE:
             try:
+                print(f"[SchemaExtractionService.__init__] Attempting to initialize evaluation service...")
                 from azure.identity import DefaultAzureCredential
                 config = get_config()
                 credential = DefaultAzureCredential()
+                print(f"[SchemaExtractionService.__init__] Config: endpoint={getattr(config, 'openai_endpoint', None)}, deployment={getattr(config, 'openai_deployment_gpt4_vision', None)}")
                 self.evaluation_service = EvaluationService(
                     azure_endpoint=getattr(config, 'openai_endpoint', None),
                     deployment_name=getattr(config, 'openai_deployment_gpt4_vision', None),
                     api_version="2024-08-01-preview",
                     credential=credential
                 )
-                logger.info("Evaluation service initialized")
+                print(f"[SchemaExtractionService.__init__] Evaluation service created successfully")
+                logger.info("Evaluation service initialized and enabled")
             except Exception as e:
-                logger.warning(f"Failed to initialize evaluation service: {e}")
+                print(f"[SchemaExtractionService.__init__] Failed to initialize evaluation service: {e}")
+                logger.error(f"Failed to initialize evaluation service: {e}", exc_info=True)
                 self.evaluation_service = None
                 self.enable_evaluation = False
+        else:
+            print(f"[SchemaExtractionService.__init__] Evaluation not available - module not found")
+            logger.warning("Evaluation not available - evaluation module not found")
     
     def register_adapter(self, name: str, adapter: ExtractionModelAdapter):
         """Register a model adapter."""
@@ -117,6 +123,11 @@ class SchemaExtractionService:
         logger.info(f"  version: {version}")
         logger.info(f"  content_size: {len(document_content)} bytes")
         logger.info(f"  registered_adapters: {list(self.adapters.keys())}")
+        logger.info(f"  enable_evaluation: {self.enable_evaluation}")
+        logger.info(f"  evaluation_service: {self.evaluation_service is not None}")
+        
+        print(f"\n>>> extract_document() called")
+        print(f">>> enable_evaluation={self.enable_evaluation}, evaluation_service={self.evaluation_service is not None}")
         
         start_time = time.time()
         
@@ -254,22 +265,51 @@ class SchemaExtractionService:
             extraction.completed_at = datetime.utcnow()
             extraction.processing_duration_ms = int((time.time() - start_time) * 1000)
             
+            print(f"\n>>> Step 8: About to run evaluation")
+            print(f">>> enable_evaluation={self.enable_evaluation}, evaluation_service={self.evaluation_service is not None}")
+            
             # 8. Run batch evaluation if enabled
             evaluation_results = None
+            logger.info(f"[Evaluation] Check: enable_evaluation={self.enable_evaluation}, evaluation_service={self.evaluation_service is not None}")
             if self.enable_evaluation and self.evaluation_service:
                 try:
+                    eval_start = time.time()
                     logger.info("Running batch evaluation...")
+                    print(f">>> Running batch evaluation...")
                     # Pass the adapter to reuse OCR text from extraction
                     evaluation_results = await self._evaluate_extraction(
                         extraction, document_content, adapter
                     )
+                    eval_duration_ms = int((time.time() - eval_start) * 1000)
+                    
                     if evaluation_results:
-                        logger.info(f"Evaluation completed: avg score {evaluation_results.get('aggregate_summary', {}).get('average_correctness_score', 'N/A')}")
+                        avg_score = evaluation_results.get('aggregate_summary', {}).get('average_correctness_score', 'N/A')
+                        field_count = len(evaluation_results.get('results', []))
+                        logger.info(f"Evaluation completed in {eval_duration_ms}ms: {field_count} fields evaluated, avg correctness score: {avg_score}")
+                        print(f">>> Evaluation completed: {field_count} fields, avg score: {avg_score}")
+                    else:
+                        logger.warning(f"Evaluation returned no results after {eval_duration_ms}ms")
+                        print(f">>> Evaluation returned no results!")
                 except Exception as eval_error:
-                    logger.error(f"Evaluation failed: {eval_error}")
+                    logger.error(f"Evaluation failed: {eval_error}", exc_info=True)
+                    print(f">>> Evaluation FAILED: {eval_error}")
+            else:
+                logger.info("[Evaluation] Skipped - not enabled or service not available")
+                print(f">>> Evaluation SKIPPED")
             
             # 9. Save result with evaluation
+            print(f"\n>>> Step 9: Saving extraction with evaluation_results={evaluation_results is not None}")
+            if evaluation_results:
+                print(f">>> Evaluation results structure: total_fields={evaluation_results.get('total_fields')}, results_count={len(evaluation_results.get('results', []))}")
+                import json
+                print(f">>> Full evaluation_results JSON:")
+                print(json.dumps(evaluation_results, indent=2, default=str))
+            else:
+                print(f">>> WARNING: evaluation_results is None or empty!")
+            logger.info(f"[Save] Updating extraction {extraction.id} with evaluation_results={evaluation_results is not None}")
             extraction = await self.extraction_repo.update_extraction(extraction, evaluation_results)
+            logger.info(f"[Save] Extraction updated successfully")
+            print(f">>> Save completed")
             
             # 10. Log extraction
             self._log_extraction(extraction, document_type.name, version)
@@ -472,38 +512,61 @@ class SchemaExtractionService:
         try:
             # Try to get OCR text from adapter (already extracted during extraction)
             source_text = None
+            ocr_source = "unknown"
             if adapter and hasattr(adapter, 'get_ocr_text'):
                 source_text = adapter.get_ocr_text()
                 if source_text:
-                    logger.info(f"Using OCR text from extraction ({len(source_text)} chars)")
+                    ocr_source = "adapter_cache"
+                    logger.info(f"[Evaluation] Using cached OCR text from extraction adapter ({len(source_text)} chars)")
             
             # Fallback to extracting text from document
             if not source_text:
-                logger.info("No OCR text from adapter, extracting from document...")
+                ocr_source = "document_extraction"
+                logger.info("[Evaluation] No cached OCR text, extracting from document...")
                 source_text = self._extract_text_from_document(document_content)
+                logger.info(f"[Evaluation] Extracted {len(source_text)} chars from document")
             
             # Prepare fields for evaluation with page info from citations
             fields_to_evaluate = []
             for field in extraction.fields:
-                if field.value is not None:
-                    field_data = {
-                        "field_name": field.field_name,
-                        "value": str(field.value)
-                    }
-                    # Add page info from citation if available
-                    if field.citations and len(field.citations) > 0:
-                        field_data["page"] = field.citations[0].page
-                    fields_to_evaluate.append(field_data)
+                # Include all fields, even those with None values
+                field_data = {
+                    "field_name": field.field_name,
+                    "value": str(field.value) if field.value is not None else ""
+                }
+                # Add page info from citation if available
+                if field.citations and len(field.citations) > 0:
+                    field_data["page"] = field.citations[0].page
+                fields_to_evaluate.append(field_data)
             
             if not fields_to_evaluate:
+                logger.warning("[Evaluation] No fields to evaluate")
                 return None
             
-            # Run batch evaluation
-            return self.evaluation_service.evaluate_batch(
+            logger.info(f"[Evaluation] Evaluating {len(fields_to_evaluate)} fields using {ocr_source} text source")
+            logger.debug(f"[Evaluation] Fields to evaluate: {[f['field_name'] for f in fields_to_evaluate]}")
+            
+            # Run batch evaluation with both correctness and completeness
+            eval_results = self.evaluation_service.evaluate_batch(
                 fields=fields_to_evaluate,
                 source_text=source_text,
-                evaluators=["correctness"]
+                evaluators=["correctness", "completeness"]
             )
+            
+            # Log individual field results (evaluation service returns 'results' not 'field_results')
+            if eval_results and 'results' in eval_results:
+                logger.info(f"[Evaluation] Got {len(eval_results['results'])} evaluation results")
+                for field_result in eval_results['results']:
+                    field_name = field_result.get('field_name')
+                    correctness_eval = field_result.get('evaluations', {}).get('correctness', {})
+                    correctness = correctness_eval.get('score', 'N/A')
+                    extraction_correct = correctness_eval.get('extraction_correct', False)
+                    logger.debug(f"[Evaluation] {field_name}: correctness={correctness}, correct={extraction_correct}")
+            else:
+                logger.warning(f"[Evaluation] No results returned. eval_results keys: {eval_results.keys() if eval_results else 'None'}")
+            
+            print(f">>> _evaluate_extraction returning: {eval_results is not None}, total_fields={eval_results.get('total_fields') if eval_results else 'N/A'}")
+            return eval_results
         except Exception as e:
             logger.error(f"Evaluation error: {e}")
             return None
