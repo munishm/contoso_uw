@@ -1,0 +1,122 @@
+h.
+
+
+<table>
+<tr>
+<th colspan="4">Employment Status 職業狀況</th>
+</tr>
+<tr>
+<td>☐ Self-Employed 自僱</td>
+<td>☐ Full-time Employed 全職</td>
+<td>☐ Part-time Employed 兼職</td>
+<td>☐ Not Currently Employed 非在職</td>
+</tr>
+<tr>
+<td>☐ Student</td>
+<td>☐ Housewife</td>
+<td>☐ Retired</td>
+<td></td>
+</tr>
+<tr>
+<td>學生</td>
+<td>主婦</td>
+<td>退休</td>
+<td></td>
+</tr>
+</table>
+
+
+Industry (where applicable)行業(如適用)
+
+Job Title (where applicable)職位(如適用)
+
+Name of Employer / Business (where applicable)僱主/公司名稱(如適用)
+
+Work address (where applicable)工作地址(如適用)
+
+i.
+
+US Tax ID (where applicable)美國税務編號(如適用)
+
+j.
+
+Local Tax ID (where applicable and Optional)#地方税務編號(如適用及非必要填寫)#
+
+k.
+
+Country/Region of Local Tax ID (where applicable and Optional)#地方税務編號之國家/地區(如適用及非必要填寫)#
+
+\# any country/region other than US 美國以外之國家/地區
+If Non-individual (ie Trust, Corporation, Partnership, etc)如不是個人(例如信託、公司、合夥等)
+
+1\.
+
+Full Name 名稱
+
+JOU PRINTING LTD
+
+m.
+
+Correspondence Address 通訊地址
+Flat A 7/F Kong Nam Industrial Building, Castle Peak Rd, Tsuen Wan, Hong Kong
+
+Registered Address 登記地址
+☒
+Same as correspondence address 與通訊地址相同
+
+Business Address 業務地址
+☒
+Same as correspondence address 與通訊地址相同
+☐
+Same as registered address 與登記地址相同
+
+n. Certificate of
+Incorporation No.
+公司註冊證書號碼
+
+C648829
+
+Business
+Registration No.
+商業登記證號碼
+
+21893829
+
+Date of
+Incorporation
+註冊日期
+
+13 JUN 1998
+
+Country/Region
+of Incorporation
+註冊國家/地區
+
+Hong Kong
+
+0\.
+GIIN number (where applicable)全球中間機構識別碼(如適用)
+N/A
+
+p.
+
+Telephone No. 聯絡電話
+☒
+Hong Kong SAR 香港特別行政區
+☐
+US 美國
+☐
+China 中國
+☐
+Other countries/regions 其他國家/地區
+
+Telephone no. 聯絡電話
+2402 ****
+
+q. Relationship to Proposed Insured
+與建議受保人的關係
+
+SHAREHOLDER/DIRECTOR
+
+<!-- PageFooter="FORM_NB001B: Broker Application V26 (1224)" -->
+<!-- PageNumber="Page 頁次 4/29" -->

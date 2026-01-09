@@ -79,3 +79,6 @@ uv.lock
 deploy.zip
 **/document_classification/**/data/
 **/document_classification/**/output/
+**/data/image
+**/data/pdf
+**/data/results
