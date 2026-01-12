@@ -1,7 +1,7 @@
 from typing import Any
 from rapidfuzz import fuzz
-from evaluators.base_evaluator import BaseEvaluator, EvaluationResult
-from utils.text_utils import clean_text, normalize_value
+from .base_evaluator import BaseEvaluator, EvaluationResult
+from ..utils.text_utils import clean_text, normalize_value
 
 
 

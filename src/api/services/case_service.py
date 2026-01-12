@@ -421,7 +421,12 @@ class CaseService:
                             "error_message": ext_data.get("error_message"),
                             "extraction_completed_at": now.isoformat(),
                         }
-                        logger.info(f"    Embedded extraction: {len(ext_data.get('fields', []))} fields, needs_review={ext_data.get('needs_review', False)}")
+                        # Include evaluation if present
+                        if "evaluation" in ext_data:
+                            document_data["extraction"]["evaluation"] = ext_data["evaluation"]
+                            logger.info(f"    Embedded extraction: {len(ext_data.get('fields', []))} fields, needs_review={ext_data.get('needs_review', False)}, evaluation: {ext_data['evaluation'].get('total_fields', 0)} fields evaluated")
+                        else:
+                            logger.info(f"    Embedded extraction: {len(ext_data.get('fields', []))} fields, needs_review={ext_data.get('needs_review', False)}")
                     elif extraction_info:
                         # Extraction was attempted but failed/skipped
                         document_data["extraction"] = {

@@ -515,6 +515,7 @@ class DocumentService:
                     if extraction_data.get("extraction_completed_at")
                     else None
                 ),
+                evaluation=extraction_data.get("evaluation"),  # Include evaluation data
             )
         
         return DocumentDetailResponse(

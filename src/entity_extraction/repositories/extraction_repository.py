@@ -66,12 +66,25 @@ class ExtractionRepository:
         
         return None
     
-    async def update_extraction(self, extraction: ExtractionResult) -> ExtractionResult:
+    async def update_extraction(
+        self, 
+        extraction: ExtractionResult,
+        evaluation_results: dict = None
+    ) -> ExtractionResult:
         """
         Update extraction result by updating the document record.
         
         This embeds the extraction results directly in the document.
+        
+        Args:
+            extraction: Extraction result to save
+            evaluation_results: Optional evaluation results from batch evaluation
         """
+        print(f"\n>>> update_extraction CALLED: extraction_id={extraction.id}, document_id={extraction.document_id}")
+        print(f">>> evaluation_results provided: {evaluation_results is not None}")
+        if evaluation_results:
+            print(f">>> evaluation_results keys: {evaluation_results.keys()}")
+        
         logger.info(f"ExtractionRepository: Updating extraction {extraction.id} for document {extraction.document_id}")
         
         # Find the document by document_id
@@ -84,19 +97,25 @@ class ExtractionRepository:
         """
         parameters = [{"name": "@doc_id", "value": extraction.document_id}]
         
+        print(f">>> Querying for document_id: {extraction.document_id}")
+        
         items = list(self.documents_container.query_items(
             query=query,
             parameters=parameters,
             enable_cross_partition_query=True
         ))
         
+        print(f">>> Query returned {len(items)} items")
+        
         if not items:
+            print(f">>> WARNING: No document found!")
             logger.warning(f"ExtractionRepository: Document not found for extraction {extraction.id}, document_id={extraction.document_id}")
             # Return the extraction as-is (workflow will handle it)
             return extraction
         
         doc = items[0]
         case_id = doc.get("case_id")
+        print(f">>> Found document: id={doc.get('id')}, case_id={case_id}")
         
         # Build extraction data to embed in document
         extraction_data = {
@@ -113,19 +132,59 @@ class ExtractionRepository:
             "extraction_completed_at": extraction.completed_at.isoformat() if extraction.completed_at else None,
         }
         
+        # Add evaluation results if provided
+        if evaluation_results:
+            extraction_data["evaluation"] = evaluation_results
+            logger.info(f"Added evaluation results to extraction data: {len(evaluation_results.get('results', []))} field evaluations")
+        else:
+            logger.info("No evaluation results provided")
+        
         # Update the document with extraction results
         doc["extraction"] = extraction_data
         doc["updated_at"] = datetime.utcnow().isoformat()
+        
+        logger.info(f"ExtractionRepository: About to update document {doc['id']}, case_id={case_id}")
+        logger.info(f"ExtractionRepository: extraction_data has evaluation: {'evaluation' in extraction_data}")
+        
+        # Print the full extraction_data structure for debugging
+        import json
+        print("\n" + "="*60)
+        print("EXTRACTION DATA TO BE SAVED:")
+        print("="*60)
+        print(json.dumps(extraction_data, indent=2, default=str))
+        print("="*60 + "\n")
         
         try:
             updated = self.documents_container.replace_item(
                 item=doc["id"],
                 body=doc
             )
-            logger.info(f"ExtractionRepository: Updated document {doc['id']} with extraction results")
+            logger.info(f"ExtractionRepository: Updated document {doc['id']} with extraction results (including evaluation: {'evaluation' in extraction_data})")
+            
+            # Verify what was saved by reading it back 
+            saved_doc = self.documents_container.read_item(item=doc["id"], partition_key=case_id)
+            saved_extraction = saved_doc.get("extraction", {})
+            print("\n" + "="*60)
+            print("VERIFICATION - SAVED EXTRACTION DATA:")
+            print("="*60)
+            print(f"Has evaluation: {'evaluation' in saved_extraction}")
+            if 'evaluation' in saved_extraction:
+                eval_data = saved_extraction['evaluation']
+                print(f"Evaluation total_fields: {eval_data.get('total_fields')}")
+                print(f"Evaluation results count: {len(eval_data.get('results', []))}")
+            print("="*60 + "\n")
+            
+            # Set evaluation on the extraction object so it's available to workflow
+            if evaluation_results:
+                extraction.evaluation = evaluation_results
+                logger.info(f"ExtractionRepository: Set evaluation on extraction object")
+            
             return extraction
         except exceptions.CosmosResourceNotFoundError:
             logger.error(f"ExtractionRepository: Document {doc['id']} not found for update")
+            return extraction
+        except Exception as e:
+            logger.error(f"ExtractionRepository: Failed to update document {doc['id']}: {e}", exc_info=True)
             return extraction
     
     async def list_extractions_for_document(

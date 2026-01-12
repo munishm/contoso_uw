@@ -10,8 +10,8 @@ from enum import Enum
 import json
 import logging
 
-from evaluators.correctness_evaluator import ExtractionCorrectnessEvaluator
-from evaluators.completeness_evaluator import ExtractionCompletenessEvaluator
+from .evaluators.correctness_evaluator import ExtractionCorrectnessEvaluator
+from .evaluators.completeness_evaluator import ExtractionCompletenessEvaluator
 
 # Configure logger
 logger = logging.getLogger(__name__)
