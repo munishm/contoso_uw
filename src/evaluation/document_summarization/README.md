@@ -140,7 +140,7 @@ The framework includes three core evaluators:
    - Tracks which entities are covered vs missing
    - **No external dependencies** - uses shared normalize_text() utility
 
-2. **Groundedness (GS)** - Weight: 35%
+2. **Groundedness (GS)** - Weight: 30%
    - Verifies facts are grounded in source entities
    - **Numeric entities**: Relative deviation penalty (exact or close match)
    - **Textual entities**: Token containment (support-based scoring)
@@ -148,7 +148,7 @@ The framework includes three core evaluators:
    - **No fuzzy matching** - pure token overlap approach
    - **No external dependencies** - uses shared utilities (split_summary_into_sentences, extract_numeric_values, normalize_text)
 
-3. **Semantic Fidelity (SEF)** - Weight: 25%
+3. **Semantic Fidelity (SEF)** - Weight: 30%
    - Measures how faithfully entity values are expressed
    - **Numeric-heavy entities**: Strict grounding with partial_ratio matching
    - **Textual entities**: Fuzzy matching with token_set_ratio
