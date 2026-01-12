@@ -48,5 +48,18 @@ export const documentsService = {
   async getDocumentsByCase(caseId: string): Promise<Document[]> {
     const response = await apiClient.get<{ items: Document[] }>(`/cases/${caseId}/documents`)
     return response.data.items
+  },
+
+  /**
+   * Get document summary from the summaries collection
+   */
+  async getDocumentSummary(caseId: string, documentId: string): Promise<{ summary: string | null; document_type: string | null }> {
+    try {
+      const response = await apiClient.get<{ summary: string | null; document_type: string | null }>(`/cases/${caseId}/documents/${documentId}/summary`)
+      return response.data
+    } catch {
+      // Return null if summary not found
+      return { summary: null, document_type: null }
+    }
   }
 }

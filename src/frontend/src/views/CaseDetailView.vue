@@ -55,17 +55,6 @@
         </v-col>
 
         <v-col cols="12" md="8">
-          <!-- Case Summary -->
-          <v-card v-if="currentCase.case_summary" class="mb-4">
-            <v-card-title>Case Summary</v-card-title>
-            <v-card-text>
-              <p class="text-body-1">{{ currentCase.case_summary }}</p>
-              <p v-if="currentCase.case_summary_updated_at" class="text-caption text-grey mt-2">
-                Last updated: {{ formatDateTime(currentCase.case_summary_updated_at) }}
-              </p>
-            </v-card-text>
-          </v-card>
-
           <!-- Documents -->
           <v-card>
             <v-card-title class="d-flex align-center">

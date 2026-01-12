@@ -443,7 +443,7 @@ class CaseService:
                     else:
                         # No extraction attempted for this document type
                         document_data["extraction"] = None
-                    
+ 
                     try:
                         created_doc = await self.document_repo.create_document(document_data)
                         created_document_ids.append(document_id)
@@ -490,6 +490,41 @@ class CaseService:
                     logger.info(f"\nCombined case summary created: {len(case_summary)} chars total")
                 else:
                     logger.info("\nNo case summary generated (no successful summaries)")
+                
+                # ========== UPDATE DOCUMENTS WITH SUMMARIES ==========
+                # Update each document record with its corresponding summary
+                logger.info("-" * 60)
+                logger.info("UPDATING DOCUMENTS WITH SUMMARIES")
+                logger.info("-" * 60)
+                
+                # Build lookup of summaries by document type
+                summary_by_doc_type = {}
+                for summary_data in summaries:
+                    doc_type = summary_data.get('document_type')
+                    if doc_type and summary_data.get('status') == 'success' and summary_data.get('summary'):
+                        summary_by_doc_type[doc_type] = summary_data.get('summary')
+                
+                # Update each created document with its summary
+                for document_id in created_document_ids:
+                    try:
+                        doc = await self.document_repo.get_document(document_id, case_id)
+                        if doc:
+                            doc_type = doc.get('classification')
+                            doc_summary = summary_by_doc_type.get(doc_type)
+                            if doc_summary:
+                                await self.document_repo.update_document(
+                                    document_id,
+                                    case_id,
+                                    {
+                                        "summary": doc_summary,
+                                        "updated_at": now.isoformat(),
+                                    }
+                                )
+                                logger.info(f"  ✓ Updated document {document_id} ({doc_type}) with summary ({len(doc_summary)} chars)")
+                            else:
+                                logger.info(f"  - No summary for document {document_id} ({doc_type})")
+                    except Exception as sum_err:
+                        logger.error(f"  ✗ Failed to update document {document_id} with summary: {sum_err}")
                 
                 logger.info("=" * 60)
                 

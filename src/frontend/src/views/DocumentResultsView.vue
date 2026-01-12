@@ -46,6 +46,17 @@
       <v-row v-if="document.processing_status === 'completed'">
         <!-- Left Column - Extraction Results -->
         <v-col cols="12" md="5" lg="4">
+          <!-- Summary Card - at top -->
+          <v-card v-if="effectiveSummary" class="mb-4">
+            <v-card-title>
+              <v-icon class="mr-2">mdi-text-box-outline</v-icon>
+              Summary
+            </v-card-title>
+            <v-card-text>
+              <p class="text-body-2">{{ effectiveSummary }}</p>
+            </v-card-text>
+          </v-card>
+
           <!-- Extraction Status Card -->
           <v-card class="mb-4" v-if="document.extraction">
             <v-card-title class="d-flex align-center">
@@ -395,17 +406,6 @@
             </v-card-text>
           </v-card>
 
-          <!-- Summary Card -->
-          <v-card v-if="document.summary" class="mb-4">
-            <v-card-title>
-              <v-icon class="mr-2">mdi-text-box-outline</v-icon>
-              Summary
-            </v-card-title>
-            <v-card-text>
-              <p class="text-body-2">{{ document.summary }}</p>
-            </v-card-text>
-          </v-card>
-
           <!-- Download Button -->
           <v-btn 
             variant="tonal" 
@@ -529,6 +529,7 @@
 import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDocumentsStore } from '@/stores/documents'
+import { documentsService } from '@/services/documentsService'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import ErrorMessage from '@/components/common/ErrorMessage.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
@@ -549,6 +550,9 @@ const document = computed(() => documentsStore.getDocumentById(props.documentId)
 const isLoading = computed(() => documentsStore.isLoading)
 const error = computed(() => documentsStore.error)
 const isDownloading = ref(false)
+
+// Document summary from summaries collection
+const documentSummary = ref<string | null>(null)
 
 // PDF Viewer state
 const pdfViewMode = ref<'interactive' | 'annotated' | 'original'>('interactive')
@@ -645,14 +649,30 @@ const extractionStatusChipColor = computed(() => {
   return 'info'
 })
 
+// Effective summary - prefer fetched summary from summaries collection, fallback to document.summary
+const effectiveSummary = computed(() => {
+  return documentSummary.value || document.value?.summary || null
+})
+
 onMounted(async () => {
   await documentsStore.fetchDocument(props.caseId, props.documentId)
   // Auto-load PDF preview when document is ready
   if (document.value?.processing_status === 'completed') {
     loadPdfPreview()
     loadFieldColors()
+    loadDocumentSummary()
   }
 })
+
+// Load document summary from summaries collection
+async function loadDocumentSummary() {
+  try {
+    const summaryData = await documentsService.getDocumentSummary(props.caseId, props.documentId)
+    documentSummary.value = summaryData.summary
+  } catch (err) {
+    console.error('Failed to load document summary:', err)
+  }
+}
 
 // Watch for processing status changes
 watch(
@@ -661,6 +681,7 @@ watch(
     if (status === 'completed' && !originalPdfUrl.value) {
       loadPdfPreview()
       loadFieldColors()
+      loadDocumentSummary()
     }
   }
 )

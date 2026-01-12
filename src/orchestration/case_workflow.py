@@ -852,24 +852,55 @@ class SummarizationProcessor(IDocumentProcessor):
         # Process each extraction result
         summaries = []
         
-        for extraction_data in extracted_entities:
+        for idx, extraction_data in enumerate(extracted_entities):
+            logger.info(f"\n{'='*60}")
+            logger.info(f"Processing extraction result [{idx+1}/{len(extracted_entities)}]")
+            logger.info(f"{'='*60}")
+            
+            # Log extraction data details
+            document_type = extraction_data.get("document_type")
+            file_path = extraction_data.get("file_path")
+            status = extraction_data.get("status")
+            
+            logger.info(f"  Document Type: {document_type}")
+            logger.info(f"  File Path: {file_path}")
+            logger.info(f"  Extraction Status: {status}")
+            
             # Skip if extraction was not successful
-            if extraction_data.get("status") != "success":
-                logger.info(f"Skipping summarization for {extraction_data.get('document_type')} - extraction status: {extraction_data.get('status')}")
+            if status != "success":
+                logger.warning(f"  ⚠ Skipping summarization - extraction status: {status}")
+                if extraction_data.get("reason"):
+                    logger.info(f"  Reason: {extraction_data.get('reason')}")
+                if extraction_data.get("error"):
+                    logger.error(f"  Error: {extraction_data.get('error')}")
+                
                 summaries.append({
-                    "document_type": extraction_data.get("document_type"),
-                    "file_path": extraction_data.get("file_path"),
+                    "document_type": document_type,
+                    "file_path": file_path,
                     "summary": None,
                     "status": "skipped",
-                    "reason": f"Extraction status was {extraction_data.get('status')}"
+                    "reason": f"Extraction status was {status}"
                 })
                 continue
             
             extraction_result = extraction_data.get("extraction_result", {})
-            document_type = extraction_data.get("document_type")
-            file_path = extraction_data.get("file_path")
             
-            logger.info(f"Processing summarization for {document_type}")
+            # Log extraction result structure
+            logger.info(f"  Extraction Result Keys: {list(extraction_result.keys())}")
+            logger.info(f"  Extraction Result Type: {type(extraction_result)}")
+            
+            # Check for entities
+            if "entities" in extraction_result:
+                entities = extraction_result.get("entities", [])
+                logger.info(f"  Found 'entities' key with {len(entities)} items")
+                if entities:
+                    logger.info(f"  First entity sample: {entities[0]}")
+            else:
+                logger.info(f"  No 'entities' key found in extraction_result")
+                # Log a sample of the extraction result structure
+                logger.info(f"  Extraction result sample: {str(extraction_result)[:200]}...")
+            
+            logger.info(f"\n  Starting summarization for {document_type}...")
             
             try:
                 # Generate summary from extraction result
@@ -879,20 +910,38 @@ class SummarizationProcessor(IDocumentProcessor):
                     file_path=file_path
                 )
                 
+                # Log summary result details
+                success = summary_result.get("success")
+                error_msg = summary_result.get("error_message")
+                summary_text = summary_result.get("summary", "")
+                
+                logger.info(f"  Summary Result:")
+                logger.info(f"    Success: {success}")
+                logger.info(f"    Summary Length: {len(summary_text)} chars")
+                if error_msg:
+                    logger.error(f"    Error Message: {error_msg}")
+                if summary_text:
+                    logger.info(f"    Summary Preview: {summary_text[:100]}...")
+                
                 summaries.append({
                     "document_type": document_type,
                     "file_path": file_path,
-                    "summary": summary_result.get("summary"),
+                    "summary": summary_text,
                     "metadata": summary_result.get("metadata"),
-                    "status": "success" if summary_result.get("success") else "failed",
-                    "error_message": summary_result.get("error_message")
+                    "status": "success" if success else "failed",
+                    "error_message": error_msg
                 })
                 
-                logger.info(f"  ✓ Summary generated for {document_type}")
-                logger.info(f"    Summary length: {len(summary_result.get('summary', ''))} chars")
+                if success:
+                    logger.info(f"  ✓ Summary generated successfully for {document_type}")
+                else:
+                    logger.error(f"  ✗ Summary generation failed for {document_type}")
                 
             except Exception as e:
-                logger.error(f"  ✗ Summarization failed for {document_type}: {e}")
+                logger.error(f"  ✗ Exception during summarization for {document_type}: {e}")
+                import traceback
+                logger.error(f"  Traceback: {traceback.format_exc()}")
+                
                 summaries.append({
                     "document_type": document_type,
                     "file_path": file_path,
@@ -939,24 +988,34 @@ class SummarizationProcessor(IDocumentProcessor):
             from src.document_summarization.summarization_service import SummarizationService
             from src.document_summarization.utils.entity_loader import EntityLoader
             
+            logger.info(f"    [_generate_summary] Starting for document_type: {document_type}")
+            
             # Load environment variables
             load_dotenv()
             
-            # Get Azure OpenAI configuration
-            azure_endpoint = os.getenv("GPT_4_1_API_ENDPOINT")
-            deployment_name = os.getenv("GPT_4_1_API_DEPLOYMENT")
-            api_version = os.getenv("GPT_4_1_API_VERSION")
+            # Get Azure OpenAI configuration (simplified - similar to EXTRACTION_DOC_INTELLIGENCE_ENDPOINT)
+            azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+            deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-198589")  # Default: actual deployment
+            api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview")  # Default: latest API version
             
-            if not all([azure_endpoint, deployment_name, api_version]):
-                logger.warning("Azure OpenAI configuration not found in environment")
+            logger.info(f"    [_generate_summary] Azure OpenAI Config:")
+            logger.info(f"      Endpoint: {azure_endpoint[:50]}..." if azure_endpoint else "      Endpoint: None")
+            logger.info(f"      Deployment: {deployment_name}")
+            logger.info(f"      API Version: {api_version}")
+            
+            if not azure_endpoint:
+                logger.error("    [_generate_summary] ✗ Azure OpenAI endpoint missing!")
+                logger.error(f"      Required: AZURE_OPENAI_ENDPOINT environment variable")
+                logger.error(f"      Example: AZURE_OPENAI_ENDPOINT=https://your-resource.cognitiveservices.azure.com")
                 return {
                     "summary": "",
                     "success": False,
-                    "error_message": "Azure OpenAI configuration missing",
+                    "error_message": "Azure OpenAI endpoint not configured. Set AZURE_OPENAI_ENDPOINT environment variable.",
                     "metadata": {}
                 }
             
             # Initialize SummarizationService
+            logger.info(f"    [_generate_summary] Initializing SummarizationService...")
             service = SummarizationService(
                 azure_endpoint=azure_endpoint,
                 deployment_name=deployment_name,
@@ -965,33 +1024,67 @@ class SummarizationProcessor(IDocumentProcessor):
                 temperature=0.0,
                 max_tokens=5000
             )
+            logger.info(f"    [_generate_summary] ✓ SummarizationService initialized")
             
             # Extract entities from the extraction result
             # The extraction result may have different formats, handle both
             entities = {}
             
+            logger.info(f"    [_generate_summary] Extracting entities from extraction_result")
+            logger.info(f"      extraction_result type: {type(extraction_result)}")
+            
             # Check if extraction_result has an 'entities' key with list format
             if "entities" in extraction_result and isinstance(extraction_result["entities"], list):
+                logger.info(f"      Found 'entities' key (list format) with {len(extraction_result['entities'])} items")
                 # Convert list of entity objects to dict
-                for entity in extraction_result["entities"]:
+                for idx, entity in enumerate(extraction_result["entities"]):
                     if isinstance(entity, dict):
                         entity_type = entity.get("type") or entity.get("entity_type") or entity.get("name")
                         entity_value = entity.get("value") or entity.get("entity_value")
+                        logger.debug(f"        Entity [{idx}]: type={entity_type}, value={entity_value}")
                         if entity_type and entity_value:
                             entities[entity_type] = entity_value
+                logger.info(f"      Converted {len(entities)} entities from list to dict")
             
             # Check if extraction_result itself is a dict of entities
             elif isinstance(extraction_result, dict):
+                logger.info(f"      extraction_result is dict, checking for entity mappings")
+                logger.info(f"      Keys in extraction_result: {list(extraction_result.keys())}")
                 # Try to find entity mappings in the result
+                excluded_keys = ["status", "metadata", "document_type", "confidence", "analyzer_id", 
+                                 "fields", "needs_review", "models_used", "processing_time_ms", 
+                                 "error_message", "extraction_id", "extraction_completed_at"]
+                
                 for key, value in extraction_result.items():
-                    if key not in ["status", "metadata", "document_type", "confidence", "analyzer_id"]:
+                    if key not in excluded_keys:
                         if isinstance(value, (str, int, float, bool)):
                             entities[key] = str(value)
+                            logger.debug(f"        Added entity: {key} = {value}")
+                
+                # Also check if there's a 'fields' key (common in extraction results)
+                if "fields" in extraction_result and isinstance(extraction_result["fields"], list):
+                    logger.info(f"      Found 'fields' key with {len(extraction_result['fields'])} items")
+                    for field in extraction_result["fields"]:
+                        if isinstance(field, dict):
+                            field_name = field.get("name") or field.get("field_name")
+                            field_value = field.get("value") or field.get("field_value")
+                            if field_name and field_value:
+                                entities[field_name] = field_value
+                                logger.debug(f"        Added field: {field_name} = {field_value}")
+                    logger.info(f"      Extracted {len(entities)} entities from 'fields'")
             
-            logger.info(f"  Extracted {len(entities)} entities for summarization")
+            logger.info(f"    [_generate_summary] Entity extraction complete:")
+            logger.info(f"      Total entities extracted: {len(entities)}")
+            if entities:
+                logger.info(f"      Entity keys: {list(entities.keys())}")
+                # Log first few entities
+                for key, value in list(entities.items())[:5]:
+                    logger.info(f"        {key}: {str(value)[:50]}...")
+            else:
+                logger.warning(f"      ⚠ NO ENTITIES EXTRACTED!")
             
             if not entities:
-                logger.warning("  No entities found in extraction result")
+                logger.error("    [_generate_summary] ✗ No entities found in extraction result")
                 return {
                     "summary": "",
                     "success": False,
@@ -1000,15 +1093,24 @@ class SummarizationProcessor(IDocumentProcessor):
                 }
             
             # Generate summary
+            logger.info(f"    [_generate_summary] Calling service.generate_summary()...")
             result = service.generate_summary(
                 entities=entities,
                 context=f"{document_type}"
             )
             
+            logger.info(f"    [_generate_summary] Summary generation result:")
+            logger.info(f"      Success: {result.get('success')}")
+            logger.info(f"      Summary length: {len(result.get('summary', ''))} chars")
+            if result.get('error_message'):
+                logger.error(f"      Error: {result.get('error_message')}")
+            
             return result
             
         except ImportError as e:
-            logger.error(f"  Import error in summarization: {e}")
+            logger.error(f"    [_generate_summary] ✗ Import error: {e}")
+            import traceback
+            logger.error(f"      Traceback: {traceback.format_exc()}")
             return {
                 "summary": "",
                 "success": False,
@@ -1016,9 +1118,9 @@ class SummarizationProcessor(IDocumentProcessor):
                 "metadata": {}
             }
         except Exception as e:
-            logger.error(f"  Summarization error: {e}")
+            logger.error(f"    [_generate_summary] ✗ Unexpected error: {e}")
             import traceback
-            logger.error(f"  Traceback: {traceback.format_exc()}")
+            logger.error(f"      Traceback: {traceback.format_exc()}")
             return {
                 "summary": "",
                 "success": False,
