@@ -39,19 +39,19 @@
         >
           <!-- Annotation rectangles -->
           <g v-for="(annotation, idx) in getAnnotationsForPage(pageNum)" :key="`${pageNum}-${idx}`">
-            <!-- Glow background (only when hovered) -->
+            <!-- Glow background (when selected) -->
             <rect
-              v-if="hoveredField === annotation.fieldName"
-              :x="annotation.x - 3"
-              :y="annotation.y - 3"
-              :width="annotation.width + 6"
-              :height="annotation.height + 6"
+              v-if="selectedField === annotation.fieldName"
+              :x="annotation.x - 6"
+              :y="annotation.y - 6"
+              :width="annotation.width + 12"
+              :height="annotation.height + 12"
               :fill="annotation.color"
-              fill-opacity="0.25"
+              fill-opacity="0.3"
               :stroke="annotation.color"
-              stroke-width="3"
-              stroke-opacity="0.5"
-              rx="3"
+              stroke-width="4"
+              stroke-opacity="0.7"
+              rx="4"
               class="glow-rect"
             />
             <!-- Main bounding box -->
@@ -60,14 +60,13 @@
               :y="annotation.y"
               :width="annotation.width"
               :height="annotation.height"
-              :fill="hoveredField === annotation.fieldName ? `${annotation.color}30` : 'transparent'"
+              :fill="selectedField === annotation.fieldName ? `${annotation.color}30` : 'transparent'"
               :stroke="annotation.color"
-              :stroke-width="hoveredField === annotation.fieldName ? 3 : 2"
+              :stroke-width="selectedField === annotation.fieldName ? 3 : 2"
+              :stroke-dasharray="selectedField === annotation.fieldName ? 'none' : '4,2'"
               class="annotation-rect"
-              :class="{ 'hovered': hoveredField === annotation.fieldName }"
-              @mouseenter="$emit('hover-field', annotation.fieldName)"
-              @mouseleave="$emit('hover-field', null)"
-              @click="$emit('click-field', annotation.fieldName)"
+              :class="{ 'selected': selectedField === annotation.fieldName }"
+              @click="handleAnnotationClick(annotation.fieldName)"
             />
           </g>
         </svg>
@@ -87,16 +86,14 @@ interface Props {
   documentId: string
   fields: ExtractedFieldResult[]
   fieldColors: Record<string, FieldColorInfo>
-  highlightedField: string | null
-  hoveredField: string | null
+  selectedField: string | null  // Currently selected field (from click)
   numPages: number
 }
 
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
-  (e: 'hover-field', fieldName: string | null): void
-  (e: 'click-field', fieldName: string): void
+  (e: 'select-field', fieldName: string | null): void
   (e: 'loaded'): void
   (e: 'error', error: string): void
 }>()
@@ -190,7 +187,17 @@ function getAnnotationsForPage(pageNum: number): Annotation[] {
   return annotations.value.filter(a => a.page === pageNum)
 }
 
-// Scroll to field when highlighted
+// Handle click on annotation in PDF
+function handleAnnotationClick(fieldName: string) {
+  // Toggle selection - click again to deselect
+  if (props.selectedField === fieldName) {
+    emit('select-field', null)
+  } else {
+    emit('select-field', fieldName)
+  }
+}
+
+// Scroll to field and highlight it
 function scrollToField(fieldName: string) {
   const annotation = annotations.value.find(a => a.fieldName === fieldName)
   if (!annotation || !containerRef.value) return
@@ -201,7 +208,8 @@ function scrollToField(fieldName: string) {
   }
 }
 
-watch(() => props.highlightedField, (fieldName) => {
+// Watch for selected field changes to scroll
+watch(() => props.selectedField, (fieldName) => {
   if (fieldName) scrollToField(fieldName)
 })
 
@@ -273,19 +281,31 @@ onMounted(() => {
 .annotation-rect {
   pointer-events: all;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
 }
 
 .annotation-rect:hover {
   stroke-width: 3;
+  stroke-dasharray: none;
+}
+
+.annotation-rect.selected {
+  stroke-dasharray: none;
 }
 
 .glow-rect {
-  animation: pulse 1.5s ease-in-out infinite;
+  animation: glowPulse 1.2s ease-in-out infinite;
+  filter: drop-shadow(0 0 8px currentColor);
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 0.8; }
+@keyframes glowPulse {
+  0%, 100% { 
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 0.8;
+    transform: scale(1.01);
+  }
 }
 </style>

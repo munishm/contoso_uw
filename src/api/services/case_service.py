@@ -446,10 +446,49 @@ class CaseService:
                     except Exception as doc_err:
                         logger.error(f"  ✗ Failed to create document record: {doc_err}")
                 
+                
                 logger.info(f"Total documents created: {len(created_document_ids)}")
                 logger.info("-" * 60)
                 
-                # Update case: processing status + case status transition to IN_REVIEW
+                # ========== SUMMARIZATION RESULTS ==========
+                summarization_result = step_results.get('summarization', {})
+                summaries = summarization_result.get('summaries', [])
+                summarization_status = summarization_result.get('summarization_status', 'not_run')
+                
+                logger.info("-" * 60)
+                logger.info(f"SUMMARIZATION RESULTS")
+                logger.info("-" * 60)
+                logger.info(f"Summarization status: {summarization_status}")
+                logger.info(f"Total summaries generated: {len(summaries)}")
+                
+                # Collect and log summaries
+                case_summary_parts = []
+                for idx, summary_data in enumerate(summaries):
+                    doc_type = summary_data.get('document_type')
+                    status = summary_data.get('status', 'unknown')
+                    summary_text = summary_data.get('summary')
+                    
+                    logger.info(f"  Summary [{idx + 1}]: {doc_type} - status={status}")
+                    if summary_text:
+                        logger.info(f"    Length: {len(summary_text)} chars")
+                        logger.info(f"    Text preview: {summary_text[:100]}...")
+                        # Collect successful summaries for case summary
+                        case_summary_parts.append(f"**{doc_type}**:\n{summary_text}")
+                    else:
+                        logger.info(f"    No summary (reason: {summary_data.get('reason') or summary_data.get('error', 'N/A')})")
+                
+                # Create combined case summary from all document summaries
+                case_summary = "\n\n".join(case_summary_parts) if case_summary_parts else None
+                case_summary_updated_at = now.isoformat() if case_summary else None
+                
+                if case_summary:
+                    logger.info(f"\nCombined case summary created: {len(case_summary)} chars total")
+                else:
+                    logger.info("\nNo case summary generated (no successful summaries)")
+                
+                logger.info("=" * 60)
+                
+                # Update case: processing status + case status transition to IN_REVIEW + summary
                 
                 # Build status history entry for status transition
                 current_case = await self.case_repo.get_case(case_id)
@@ -471,6 +510,8 @@ class CaseService:
                         "total_documents_expected": documents_count,
                         "documents_processed_count": documents_count,
                         "status_history": status_history,
+                        "case_summary": case_summary,  # Store combined summary
+                        "case_summary_updated_at": case_summary_updated_at,  # Store update timestamp
                     },
                     user_id=user_id,
                 )

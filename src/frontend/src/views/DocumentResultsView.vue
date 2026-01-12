@@ -110,14 +110,12 @@
                   class="extraction-field mb-2 pa-3"
                   :class="{ 
                     'needs-review': field.needs_review,
-                    'highlighted': highlightedField === field.field_name,
+                    'selected': selectedField === field.field_name,
                     'clickable': field.citations?.length > 0
                   }"
                   :style="getFieldStyle(field)"
                   rounded
                   @click="toggleFieldHighlight(field)"
-                  @mouseenter="handleFieldHover(field)"
-                  @mouseleave="handleFieldHover(null)"
                 >
                   <template v-slot:prepend>
                     <v-icon 
@@ -303,15 +301,15 @@
               <v-icon class="mr-2">mdi-file-pdf-box</v-icon>
               {{ pdfViewModeTitle }}
               <v-chip 
-                v-if="(pdfViewMode === 'annotated' || pdfViewMode === 'interactive') && (highlightedField || hoveredField)" 
+                v-if="(pdfViewMode === 'annotated' || pdfViewMode === 'interactive') && selectedField" 
                 size="small" 
-                :color="hoveredField ? 'secondary' : 'primary'"
+                color="primary"
                 class="ml-2"
-                :closable="!!highlightedField"
+                closable
                 @click:close="clearHighlight"
               >
-                <v-icon v-if="hoveredField" start size="x-small">mdi-cursor-default</v-icon>
-                {{ formatFieldName(hoveredField || highlightedField || '') }}
+                <v-icon start size="x-small">mdi-target</v-icon>
+                {{ formatFieldName(selectedField) }}
               </v-chip>
               <v-spacer />
               <v-btn 
@@ -332,7 +330,7 @@
             </v-card-title>
             <v-divider />
             <v-card-text class="pa-0">
-              <!-- Interactive PDF Viewer with hover highlights -->
+              <!-- Interactive PDF Viewer with click-based selection -->
               <template v-if="pdfViewMode === 'interactive'">
                 <pdf-viewer-with-highlights
                   ref="interactivePdfViewerRef"
@@ -340,11 +338,9 @@
                   :document-id="documentId"
                   :fields="extractedFields"
                   :field-colors="fieldColors"
-                  :highlighted-field="highlightedField"
-                  :hovered-field="hoveredField"
+                  :selected-field="selectedField"
                   :num-pages="documentNumPages"
-                  @hover-field="handlePdfFieldHover"
-                  @click-field="handlePdfFieldClick"
+                  @select-field="handleFieldSelect"
                   @loaded="onInteractivePdfLoaded"
                   @error="onInteractivePdfError"
                 />
@@ -439,8 +435,9 @@ const pdfError = ref<string | null>(null)
 const pdfKey = ref(0) // Force iframe refresh
 const interactivePdfViewerRef = ref<InstanceType<typeof PdfViewerWithHighlights> | null>(null)
 
-// Field highlighting and hovering
-const highlightedField = ref<string | null>(null)
+// Field selection (click-based)
+const selectedField = ref<string | null>(null)
+const highlightedField = ref<string | null>(null)  // For annotated PDF mode
 const hoveredField = ref<string | null>(null)
 const fieldColors = ref<Record<string, FieldColorInfo>>({})
 
@@ -596,41 +593,24 @@ function formatDate(dateString?: string | null): string {
 }
 
 function getFieldStyle(field: ExtractedFieldResult) {
-  const isHighlighted = highlightedField.value === field.field_name
+  const isSelected = selectedField.value === field.field_name
   
-  if (isHighlighted) {
+  if (isSelected) {
     const color = fieldColors.value[field.field_name]
     if (color) {
       return {
         borderLeft: `4px solid ${color.hex}`,
         backgroundColor: `${color.hex}25`,
+        boxShadow: `0 0 8px ${color.hex}50`,
       }
     }
     return {
       borderLeft: '4px solid #1976d2',
       backgroundColor: '#1976d225',
+      boxShadow: '0 0 8px #1976d250',
     }
   }
   return {}
-}
-
-// Handle hover on field in the extraction list
-function handleFieldHover(field: ExtractedFieldResult | null) {
-  if (field && field.citations?.length) {
-    hoveredField.value = field.field_name
-  } else {
-    hoveredField.value = null
-  }
-}
-
-// Handle hover from PDF viewer
-function handlePdfFieldHover(fieldName: string | null) {
-  hoveredField.value = fieldName
-}
-
-// Handle click from PDF viewer
-function handlePdfFieldClick(fieldName: string) {
-  highlightedField.value = fieldName
 }
 
 // Interactive PDF viewer events
@@ -644,18 +624,24 @@ function onInteractivePdfError(errorMsg: string) {
   pdfError.value = errorMsg
 }
 
+// Handle field selection from PDF viewer or extraction list
+function handleFieldSelect(fieldName: string | null) {
+  selectedField.value = fieldName
+  highlightedField.value = fieldName  // Also set for annotated PDF
+}
+
 function toggleFieldHighlight(field: ExtractedFieldResult) {
   if (!field.citations?.length) return
   
-  if (highlightedField.value === field.field_name) {
+  if (selectedField.value === field.field_name) {
+    // Deselect
+    selectedField.value = null
     highlightedField.value = null
   } else {
+    // Select
+    selectedField.value = field.field_name
     highlightedField.value = field.field_name
-    // If in interactive mode, scroll to the field
-    if (pdfViewMode.value === 'interactive' && interactivePdfViewerRef.value) {
-      interactivePdfViewerRef.value.scrollToField(field.field_name)
-    }
-    // Switch to interactive or annotated view if in original
+    // Switch to interactive view if in original
     if (pdfViewMode.value === 'original') {
       pdfViewMode.value = 'interactive'
     }
@@ -663,6 +649,7 @@ function toggleFieldHighlight(field: ExtractedFieldResult) {
 }
 
 function clearHighlight() {
+  selectedField.value = null
   highlightedField.value = null
 }
 
@@ -837,8 +824,10 @@ onUnmounted(() => {
   border-color: #ffcc80;
 }
 
-.extraction-field.highlighted {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+.extraction-field.selected {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  transform: scale(1.01);
+  transition: all 0.2s ease;
 }
 
 .field-name {

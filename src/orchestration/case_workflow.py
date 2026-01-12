@@ -803,6 +803,246 @@ class ExtractionProcessor(IDocumentProcessor):
         return self._version
 
 
+class SummarizationProcessor(IDocumentProcessor):
+    """
+    Summarization processor for generating natural language summaries from entities.
+    
+    This processor:
+    1. Takes extracted entities from the extraction step
+    2. Loads entity data from label.json files (evaluations/notebooks/data/label.json format)
+    3. Uses SummarizationService to generate natural language summaries
+    4. Saves summary results for downstream use
+    
+    Input: extraction results with entity data
+    Output: generated summaries with metadata
+    """
+    
+    def __init__(self):
+        self._name = "summarizer"
+        self._version = "1.0.0"
+    
+    def process(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Generate summaries from extracted entities.
+        
+        Args:
+            inputs: Dict containing 'extracted_entities' from extraction step
+            
+        Returns:
+            Dict with 'summaries' containing generated summaries
+        """
+        import os
+        from dotenv import load_dotenv
+        from azure.identity import DefaultAzureCredential
+        
+        logger.info("#" * 60)
+        logger.info("STEP 5: SUMMARIZATION - INPUT RECEIVED")
+        logger.info("#" * 60)
+        logger.info(f"Input keys: {list(inputs.keys())}")
+        
+        # Log extracted_entities
+        extracted_entities = inputs.get('extracted_entities', [])
+        logger.info(f"  - extracted_entities: [{len(extracted_entities)} items]")
+        for idx, ee in enumerate(extracted_entities[:3]):
+            logger.info(f"      [{idx+1}] status={ee.get('status')}, doc_type={ee.get('document_type')}")
+        if len(extracted_entities) > 3:
+            logger.info(f"      ... and {len(extracted_entities) - 3} more")
+        logger.info("-" * 60)
+        
+        # Process each extraction result
+        summaries = []
+        
+        for extraction_data in extracted_entities:
+            # Skip if extraction was not successful
+            if extraction_data.get("status") != "success":
+                logger.info(f"Skipping summarization for {extraction_data.get('document_type')} - extraction status: {extraction_data.get('status')}")
+                summaries.append({
+                    "document_type": extraction_data.get("document_type"),
+                    "file_path": extraction_data.get("file_path"),
+                    "summary": None,
+                    "status": "skipped",
+                    "reason": f"Extraction status was {extraction_data.get('status')}"
+                })
+                continue
+            
+            extraction_result = extraction_data.get("extraction_result", {})
+            document_type = extraction_data.get("document_type")
+            file_path = extraction_data.get("file_path")
+            
+            logger.info(f"Processing summarization for {document_type}")
+            
+            try:
+                # Generate summary from extraction result
+                summary_result = self._generate_summary(
+                    extraction_result=extraction_result,
+                    document_type=document_type,
+                    file_path=file_path
+                )
+                
+                summaries.append({
+                    "document_type": document_type,
+                    "file_path": file_path,
+                    "summary": summary_result.get("summary"),
+                    "metadata": summary_result.get("metadata"),
+                    "status": "success" if summary_result.get("success") else "failed",
+                    "error_message": summary_result.get("error_message")
+                })
+                
+                logger.info(f"  ✓ Summary generated for {document_type}")
+                logger.info(f"    Summary length: {len(summary_result.get('summary', ''))} chars")
+                
+            except Exception as e:
+                logger.error(f"  ✗ Summarization failed for {document_type}: {e}")
+                summaries.append({
+                    "document_type": document_type,
+                    "file_path": file_path,
+                    "summary": None,
+                    "status": "failed",
+                    "error": str(e)
+                })
+        
+        successful = sum(1 for s in summaries if s["status"] == "success")
+        logger.info("-" * 50)
+        logger.info(f"SUMMARIZATION COMPLETE: {successful} summaries generated, {len(summaries) - successful} failed/skipped")
+        logger.info("=" * 50)
+        
+        return {
+            "summaries": summaries,
+            "summarization_status": "success" if successful > 0 else "failed",
+            "extracted_entities": extracted_entities,  # Pass through
+            "classification_response": inputs.get("classification_response")  # Pass through
+        }
+    
+    def _generate_summary(
+        self,
+        extraction_result: Dict[str, Any],
+        document_type: str,
+        file_path: str
+    ) -> Dict[str, Any]:
+        """
+        Generate a summary from extraction results using SummarizationService.
+        
+        Args:
+            extraction_result: The extraction result containing entities
+            document_type: Type of document being summarized
+            file_path: Path to the original file
+            
+        Returns:
+            Dictionary with summary, success status, and metadata
+        """
+        import os
+        from dotenv import load_dotenv
+        from azure.identity import DefaultAzureCredential
+        
+        try:
+            # Import summarization service
+            from src.document_summarization.summarization_service import SummarizationService
+            from src.document_summarization.utils.entity_loader import EntityLoader
+            
+            # Load environment variables
+            load_dotenv()
+            
+            # Get Azure OpenAI configuration
+            azure_endpoint = os.getenv("GPT_4_1_API_ENDPOINT")
+            deployment_name = os.getenv("GPT_4_1_API_DEPLOYMENT")
+            api_version = os.getenv("GPT_4_1_API_VERSION")
+            
+            if not all([azure_endpoint, deployment_name, api_version]):
+                logger.warning("Azure OpenAI configuration not found in environment")
+                return {
+                    "summary": "",
+                    "success": False,
+                    "error_message": "Azure OpenAI configuration missing",
+                    "metadata": {}
+                }
+            
+            # Initialize SummarizationService
+            service = SummarizationService(
+                azure_endpoint=azure_endpoint,
+                deployment_name=deployment_name,
+                api_version=api_version,
+                credential=DefaultAzureCredential(),
+                temperature=0.0,
+                max_tokens=5000
+            )
+            
+            # Extract entities from the extraction result
+            # The extraction result may have different formats, handle both
+            entities = {}
+            
+            # Check if extraction_result has an 'entities' key with list format
+            if "entities" in extraction_result and isinstance(extraction_result["entities"], list):
+                # Convert list of entity objects to dict
+                for entity in extraction_result["entities"]:
+                    if isinstance(entity, dict):
+                        entity_type = entity.get("type") or entity.get("entity_type") or entity.get("name")
+                        entity_value = entity.get("value") or entity.get("entity_value")
+                        if entity_type and entity_value:
+                            entities[entity_type] = entity_value
+            
+            # Check if extraction_result itself is a dict of entities
+            elif isinstance(extraction_result, dict):
+                # Try to find entity mappings in the result
+                for key, value in extraction_result.items():
+                    if key not in ["status", "metadata", "document_type", "confidence", "analyzer_id"]:
+                        if isinstance(value, (str, int, float, bool)):
+                            entities[key] = str(value)
+            
+            logger.info(f"  Extracted {len(entities)} entities for summarization")
+            
+            if not entities:
+                logger.warning("  No entities found in extraction result")
+                return {
+                    "summary": "",
+                    "success": False,
+                    "error_message": "No entities found in extraction result",
+                    "metadata": {"entity_count": 0}
+                }
+            
+            # Generate summary
+            result = service.generate_summary(
+                entities=entities,
+                context=f"{document_type}"
+            )
+            
+            return result
+            
+        except ImportError as e:
+            logger.error(f"  Import error in summarization: {e}")
+            return {
+                "summary": "",
+                "success": False,
+                "error_message": f"Import error: {str(e)}",
+                "metadata": {}
+            }
+        except Exception as e:
+            logger.error(f"  Summarization error: {e}")
+            import traceback
+            logger.error(f"  Traceback: {traceback.format_exc()}")
+            return {
+                "summary": "",
+                "success": False,
+                "error_message": str(e),
+                "metadata": {}
+            }
+    
+    def validate_input(self, document: Dict[str, Any]) -> bool:
+        """Validate that input has extracted entities."""
+        return bool(document.get("extracted_entities"))
+    
+    def get_supported_types(self) -> List[str]:
+        """Get supported input types."""
+        return ["ExtractionResult"]
+    
+    @property
+    def name(self) -> str:
+        return self._name
+    
+    @property
+    def version(self) -> str:
+        return self._version
+
+
 # =============================================================================
 # Workflow Manager
 # =============================================================================
@@ -844,6 +1084,7 @@ class CaseWorkflowManager:
             "file_upload": FileUploadProcessor(),
             "db_update": DatabaseUpdateProcessor(),
             "extractor": ExtractionProcessor(),
+            "summarizer": SummarizationProcessor(),
         }
         
         for name, processor in processors.items():
@@ -980,8 +1221,8 @@ class CaseWorkflowManager:
 
 DEFAULT_CASE_WORKFLOW_CONFIG = {
     "name": "case_processing",
-    "version": "2.0.0",  # Version bump for async-compatible refactor
-    "description": "Default case processing workflow: classification → file upload → DB prepare → extraction. DB insertion handled by case_service.py.",
+    "version": "2.1.0",  # Version bump for summarization step addition
+    "description": "Default case processing workflow: classification → file upload → DB prepare → extraction → summarization. DB insertion handled by case_service.py.",
     "steps": [
         {
             "name": "classification",
@@ -1018,12 +1259,21 @@ DEFAULT_CASE_WORKFLOW_CONFIG = {
             "outputs": ["extracted_entities"],
             "enabled": True,
             "skip_on_error": False
+        },
+        {
+            "name": "summarization",
+            "type": "summarization",
+            "component": "summarizer",
+            "inputs": {"extracted_entities": None, "classification_response": None},
+            "outputs": ["summaries", "summarization_status"],
+            "enabled": True,
+            "skip_on_error": True  # Continue workflow even if summarization fails
         }
     ],
     "metadata": {
         "created_by": "hsbc_case_workflow",
         "purpose": "insurance_underwriting",
-        "notes": "DB operations handled by case_service.py for proper async context"
+        "notes": "DB operations handled by case_service.py for proper async context. Summarization generates natural language summaries from extracted entities."
     }
 }
 
