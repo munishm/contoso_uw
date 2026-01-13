@@ -145,9 +145,20 @@ class AzureOpenAIVisionAdapter(ExtractionModelAdapter):
         input_schema = schema_version.input_schema
         properties = input_schema.get("properties", {})
         
+        print(f"\n[_build_extraction_prompt] DEBUG:")
+        print(f"  field_names parameter: {field_names}")
+        print(f"  input_schema type: {type(input_schema)}")
+        print(f"  input_schema keys: {list(input_schema.keys()) if isinstance(input_schema, dict) else 'N/A'}")
+        print(f"  input_schema full: {input_schema}")
+        print(f"  input_schema properties: {list(properties.keys())}")
+        print(f"  input_schema has {len(properties)} fields")
+        
         # Filter properties if specific fields requested
         if "*" not in field_names:
             properties = {k: v for k, v in properties.items() if k in field_names}
+            print(f"  After filtering (no *): {list(properties.keys())}")
+        else:
+            print(f"  Using all fields from schema (found *)")
         
         field_descriptions = []
         for field_name, field_spec in properties.items():

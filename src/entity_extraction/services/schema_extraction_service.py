@@ -528,6 +528,11 @@ class SchemaExtractionService:
             
             # Prepare fields for evaluation with page info from citations
             fields_to_evaluate = []
+            
+            print(f"\n[_evaluate_extraction] DEBUG:")
+            print(f"  extraction.fields count: {len(extraction.fields)}")
+            print(f"  extraction.fields: {[f.field_name for f in extraction.fields]}")
+            
             for field in extraction.fields:
                 # Include all fields, even those with None values
                 field_data = {
@@ -538,6 +543,9 @@ class SchemaExtractionService:
                 if field.citations and len(field.citations) > 0:
                     field_data["page"] = field.citations[0].page
                 fields_to_evaluate.append(field_data)
+            
+            print(f"  fields_to_evaluate count: {len(fields_to_evaluate)}")
+            print(f"  fields_to_evaluate: {[f['field_name'] for f in fields_to_evaluate]}")
             
             if not fields_to_evaluate:
                 logger.warning("[Evaluation] No fields to evaluate")
