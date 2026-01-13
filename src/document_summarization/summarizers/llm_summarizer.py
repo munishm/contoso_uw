@@ -88,12 +88,14 @@ class LLMSummarizer(BaseSummarizer):
             logger.warning("Entities must be a dictionary")
             return False
         
-        # Check that all values are strings
+        # Check that all values can be converted to non-empty strings
         for key, value in entities.items():
-            if not isinstance(key, str) or not isinstance(value, str):
-                logger.warning(f"Invalid entity format: {key}={value}")
+            if not isinstance(key, str):
+                logger.warning(f"Invalid entity key format: {key}")
                 return False
-            if not value.strip():
+            # Convert value to string if it's not already
+            str_value = str(value) if value is not None else ""
+            if not str_value.strip():
                 logger.warning(f"Empty value for entity: {key}")
                 return False
         
@@ -126,10 +128,13 @@ class LLMSummarizer(BaseSummarizer):
                     metadata={"entity_count": len(entities) if entities else 0}
                 )
             
+            # Convert all entity values to strings for consistency
+            entities_str = {key: str(value) if value is not None else "" for key, value in entities.items()}
+            
             # Build the prompt
             prompt_builder = PromptBuilder()
             prompt = prompt_builder.build_summary_prompt(
-                entities=entities,
+                entities=entities_str,
                 context=context,
                 custom_instructions=kwargs.get("custom_instructions")
             )
