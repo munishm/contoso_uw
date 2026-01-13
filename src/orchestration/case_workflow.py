@@ -928,6 +928,10 @@ class SummarizationProcessor(IDocumentProcessor):
                 evaluation_result = None
                 if success and summary_text and entities_used:
                     logger.info(f"\n  Running summarization evaluation for {document_type}...")
+                    logger.info(f"    Entities used for evaluation ({len(entities_used)}):")
+                    for entity_name, entity_value in entities_used.items():
+                        logger.info(f"      - {entity_name}: {entity_value}")
+                    
                     evaluation_result = self._evaluate_summary(
                         summary=summary_text,
                         entities=entities_used,

@@ -414,7 +414,7 @@ class ProcessingService:
         self, case_id: str, document_id: str
     ) -> dict[str, Any]:
         """Verify document exists and belongs to case."""
-        document = await self.document_repo.get_document(document_id)
+        document = await self.document_repo.get_document(document_id, case_id)
         if not document or document.get("case_id") != case_id:
             raise NotFoundError(
                 f"Document {document_id} not found in case {case_id}"
