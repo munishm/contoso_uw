@@ -7,6 +7,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/DashboardView.vue')
   },
   {
+    path: '/onboarding',
+    name: 'DocumentTypeOnboarding',
+    component: () => import('@/views/DocumentTypeOnboardingView.vue')
+  },
+  {
     path: '/cases/:caseId',
     name: 'CaseDetail',
     component: () => import('@/views/CaseDetailView.vue'),

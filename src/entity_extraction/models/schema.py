@@ -59,6 +59,7 @@ class DocumentTypeVersion(BaseModel):
     
     id: UUID = Field(default_factory=uuid4, description="Unique identifier")
     document_type_id: UUID = Field(..., description="Parent document type")
+    document_name: Optional[str] = Field(None, description="Document type name for readability")
     version: str = Field(..., pattern=r"^\d+\.\d+\.\d+$|^\d{4}$", description="Version string (semver or year)")
     input_schema: Dict[str, Any] = Field(..., description="Fields to extract (JSON Schema)")
     output_schema: Dict[str, Any] = Field(..., description="Output structure definition (JSON Schema)")

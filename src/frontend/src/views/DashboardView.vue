@@ -4,9 +4,14 @@
       <v-col cols="12">
         <div class="d-flex justify-space-between align-center mb-4">
           <h1 class="text-h4">Dashboard</h1>
-          <v-btn color="primary" prepend-icon="mdi-plus" @click="showCreateDialog = true">
-            New Case
-          </v-btn>
+          <div class="d-flex gap-2">
+            <v-btn color="secondary" prepend-icon="mdi-cog" @click="$router.push('/onboarding')">
+              Document Type Onboarding
+            </v-btn>
+            <v-btn color="primary" prepend-icon="mdi-plus" @click="showCreateDialog = true">
+              New Case
+            </v-btn>
+          </div>
         </div>
       </v-col>
     </v-row>

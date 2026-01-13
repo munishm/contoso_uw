@@ -141,9 +141,13 @@ class SchemaService:
         except jsonschema.SchemaError as e:
             raise ValidationError(f"Invalid JSON Schema: {e.message}")
         
+        # Get document type to populate document_name
+        document_type = await self.schema_repo.get_document_type(document_type_id)
+        
         from ..models import CitationLevel
         schema_version = DocumentTypeVersion(
             document_type_id=document_type_id,
+            document_name=document_type.name if document_type else None,
             version=version,
             input_schema=input_schema,
             output_schema=output_schema,
