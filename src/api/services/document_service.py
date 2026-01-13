@@ -546,6 +546,7 @@ class DocumentService:
             ),
             processing_error=document.get("processing_error"),
             extraction=extraction_response,
+            summarization_evaluation=document.get("summarization_evaluation"),
         )
 
     def _to_summary_response(self, document: dict[str, Any]) -> DocumentSummaryResponse:

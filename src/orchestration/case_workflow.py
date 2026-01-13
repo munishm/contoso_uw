@@ -914,6 +914,7 @@ class SummarizationProcessor(IDocumentProcessor):
                 success = summary_result.get("success")
                 error_msg = summary_result.get("error_message")
                 summary_text = summary_result.get("summary", "")
+                entities_used = summary_result.get("entities_used", {})
                 
                 logger.info(f"  Summary Result:")
                 logger.info(f"    Success: {success}")
@@ -923,13 +924,33 @@ class SummarizationProcessor(IDocumentProcessor):
                 if summary_text:
                     logger.info(f"    Summary Preview: {summary_text[:100]}...")
                 
+                # Run summarization evaluation if summary was generated successfully
+                evaluation_result = None
+                if success and summary_text and entities_used:
+                    logger.info(f"\n  Running summarization evaluation for {document_type}...")
+                    evaluation_result = self._evaluate_summary(
+                        summary=summary_text,
+                        entities=entities_used,
+                        document_type=document_type
+                    )
+                    
+                    if evaluation_result and evaluation_result.get("success"):
+                        logger.info(f"  ✓ Summarization evaluation completed:")
+                        logger.info(f"    Overall Score: {evaluation_result.get('overall_score', 0):.3f}")
+                        logger.info(f"    Final Composite Score: {evaluation_result.get('final_composite_score', 0):.3f}")
+                        for eval_name, eval_data in evaluation_result.get("evaluations", {}).items():
+                            logger.info(f"    {eval_name}: {eval_data.get('score', 0):.3f}")
+                    else:
+                        logger.warning(f"  ⚠ Summarization evaluation failed or skipped")
+                
                 summaries.append({
                     "document_type": document_type,
                     "file_path": file_path,
                     "summary": summary_text,
                     "metadata": summary_result.get("metadata"),
                     "status": "success" if success else "failed",
-                    "error_message": error_msg
+                    "error_message": error_msg,
+                    "evaluation": evaluation_result  # Add evaluation results
                 })
                 
                 if success:
@@ -1105,6 +1126,9 @@ class SummarizationProcessor(IDocumentProcessor):
             if result.get('error_message'):
                 logger.error(f"      Error: {result.get('error_message')}")
             
+            # Add entities used to result for evaluation
+            result["entities_used"] = entities
+            
             return result
             
         except ImportError as e:
@@ -1126,6 +1150,113 @@ class SummarizationProcessor(IDocumentProcessor):
                 "success": False,
                 "error_message": str(e),
                 "metadata": {}
+            }
+    
+    def _evaluate_summary(
+        self,
+        summary: str,
+        entities: Dict[str, Any],
+        document_type: str
+    ) -> Dict[str, Any]:
+        """
+        Evaluate the quality of a generated summary using the SummaryEvaluationService.
+        
+        Args:
+            summary: The generated summary text
+            entities: Dictionary of entities used to generate the summary
+            document_type: Type of document for context
+            
+        Returns:
+            Dictionary with evaluation results including scores and feedback
+        """
+        try:
+            logger.info(f"    [_evaluate_summary] Starting evaluation for {document_type}")
+            logger.info(f"      Summary length: {len(summary)} chars")
+            logger.info(f"      Entities count: {len(entities)}")
+            
+            # Import evaluation components
+            from src.evaluation.document_summarization import SummaryEvaluationService
+            from src.evaluation.document_summarization.evaluators import (
+                EntityCoverageEvaluator,
+                GroundednessEvaluator,
+                SemanticFidelityEvaluator
+            )
+            
+            # Initialize evaluation service
+            service = SummaryEvaluationService()
+            
+            # Create and register evaluators
+            ecs_evaluator = EntityCoverageEvaluator()
+            gs_evaluator = GroundednessEvaluator()
+            sef_evaluator = SemanticFidelityEvaluator()
+            
+            service.register_evaluator(ecs_evaluator)
+            service.register_evaluator(gs_evaluator)
+            service.register_evaluator(sef_evaluator)
+            
+            logger.info(f"      Registered evaluators: {service.get_registered_evaluators()}")
+            
+            # Convert entities to string values if needed
+            entities_str = {}
+            for key, value in entities.items():
+                entities_str[key] = str(value) if value is not None else ""
+            
+            # Run evaluation
+            result = service.evaluate(
+                summary=summary,
+                entities=entities_str,
+                context=document_type,
+                evaluators=["all"]
+            )
+            
+            if result.get("success"):
+                # Calculate weighted composite score
+                evaluations = result.get("evaluations", {})
+                ecs_score = evaluations.get("entity_coverage", {}).get("score", 0)
+                gs_score = evaluations.get("groundedness", {}).get("score", 0)
+                sef_score = evaluations.get("semantic_fidelity", {}).get("score", 0)
+                
+                # Weighted combination: ECS 40%, GS 30%, SEF 30%
+                final_score = (
+                    0.40 * ecs_score +
+                    0.30 * gs_score +
+                    0.30 * sef_score
+                )
+                
+                result["final_composite_score"] = final_score
+                result["weights"] = {
+                    "entity_coverage": 0.40,
+                    "groundedness": 0.30,
+                    "semantic_fidelity": 0.30
+                }
+                
+                logger.info(f"    [_evaluate_summary] ✓ Evaluation completed:")
+                logger.info(f"      Entity Coverage: {ecs_score:.3f} (weight: 40%)")
+                logger.info(f"      Groundedness: {gs_score:.3f} (weight: 30%)")
+                logger.info(f"      Semantic Fidelity: {sef_score:.3f} (weight: 30%)")
+                logger.info(f"      Final Composite Score: {final_score:.3f}")
+            else:
+                logger.warning(f"    [_evaluate_summary] ⚠ Evaluation failed: {result.get('error_message')}")
+            
+            return result
+            
+        except ImportError as e:
+            logger.error(f"    [_evaluate_summary] ✗ Import error: {e}")
+            return {
+                "success": False,
+                "error_message": f"Import error: {str(e)}",
+                "overall_score": 0.0,
+                "evaluations": {}
+            }
+        except Exception as e:
+            logger.error(f"    [_evaluate_summary] ✗ Unexpected error: {e}")
+            import traceback
+            logger.error(f"      Traceback: {traceback.format_exc()}")
+            return {
+                "success": False,
+                "error_message": str(e),
+                "overall_score": 0.0,
+                "evaluations": {}
             }
     
     def validate_input(self, document: Dict[str, Any]) -> bool:

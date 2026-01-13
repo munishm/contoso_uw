@@ -48,12 +48,96 @@
         <v-col cols="12" md="5" lg="4">
           <!-- Summary Card - at top -->
           <v-card v-if="effectiveSummary" class="mb-4">
-            <v-card-title>
+            <v-card-title class="d-flex align-center">
               <v-icon class="mr-2">mdi-text-box-outline</v-icon>
               Summary
+              <v-spacer />
+              <!-- Summary Evaluation Score Badge -->
+              <v-chip 
+                v-if="summaryEvaluation?.final_composite_score != null" 
+                :color="getSummaryEvaluationColor(summaryEvaluation.final_composite_score)"
+                size="small"
+              >
+                {{ formatPercentage(summaryEvaluation.final_composite_score) }}
+              </v-chip>
             </v-card-title>
             <v-card-text>
               <p class="text-body-2">{{ effectiveSummary }}</p>
+              
+              <!-- Summary Evaluation Details -->
+              <v-expand-transition>
+                <div v-if="summaryEvaluation && showSummaryEvaluation" class="mt-4">
+                  <v-divider class="mb-3" />
+                  <p class="text-caption text-grey mb-2">Evaluation Scores</p>
+                  <v-row dense>
+                    <v-col cols="4" v-if="summaryEvaluation.evaluations?.entity_coverage">
+                      <div class="text-center">
+                        <v-chip 
+                          :color="getSummaryEvaluationColor(summaryEvaluation.evaluations.entity_coverage.score)"
+                          size="x-small"
+                          class="mb-1"
+                        >
+                          {{ formatPercentage(summaryEvaluation.evaluations.entity_coverage.score) }}
+                        </v-chip>
+                        <p class="text-caption text-grey">Coverage</p>
+                      </div>
+                    </v-col>
+                    <v-col cols="4" v-if="summaryEvaluation.evaluations?.groundedness">
+                      <div class="text-center">
+                        <v-chip 
+                          :color="getSummaryEvaluationColor(summaryEvaluation.evaluations.groundedness.score)"
+                          size="x-small"
+                          class="mb-1"
+                        >
+                          {{ formatPercentage(summaryEvaluation.evaluations.groundedness.score) }}
+                        </v-chip>
+                        <p class="text-caption text-grey">Grounded</p>
+                      </div>
+                    </v-col>
+                    <v-col cols="4" v-if="summaryEvaluation.evaluations?.semantic_fidelity">
+                      <div class="text-center">
+                        <v-chip 
+                          :color="getSummaryEvaluationColor(summaryEvaluation.evaluations.semantic_fidelity.score)"
+                          size="x-small"
+                          class="mb-1"
+                        >
+                          {{ formatPercentage(summaryEvaluation.evaluations.semantic_fidelity.score) }}
+                        </v-chip>
+                        <p class="text-caption text-grey">Fidelity</p>
+                      </div>
+                    </v-col>
+                  </v-row>
+                  
+                  <!-- Feedback Section -->
+                  <div class="mt-3">
+                    <p class="text-caption text-grey mb-2">Feedback</p>
+                    <div v-if="summaryEvaluation.evaluations?.entity_coverage?.feedback" class="mb-1">
+                      <v-icon size="x-small" color="primary" class="mr-1">mdi-check-circle-outline</v-icon>
+                      <span class="text-caption">{{ summaryEvaluation.evaluations.entity_coverage.feedback }}</span>
+                    </div>
+                    <div v-if="summaryEvaluation.evaluations?.groundedness?.feedback" class="mb-1">
+                      <v-icon size="x-small" color="primary" class="mr-1">mdi-file-document-check-outline</v-icon>
+                      <span class="text-caption">{{ summaryEvaluation.evaluations.groundedness.feedback }}</span>
+                    </div>
+                    <div v-if="summaryEvaluation.evaluations?.semantic_fidelity?.feedback" class="mb-1">
+                      <v-icon size="x-small" color="primary" class="mr-1">mdi-text-box-check-outline</v-icon>
+                      <span class="text-caption">{{ summaryEvaluation.evaluations.semantic_fidelity.feedback }}</span>
+                    </div>
+                  </div>
+                </div>
+              </v-expand-transition>
+              
+              <!-- Toggle evaluation details -->
+              <v-btn 
+                v-if="summaryEvaluation"
+                variant="text" 
+                size="x-small" 
+                class="mt-2"
+                @click="showSummaryEvaluation = !showSummaryEvaluation"
+              >
+                {{ showSummaryEvaluation ? 'Hide' : 'Show' }} evaluation details
+                <v-icon end size="x-small">{{ showSummaryEvaluation ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
+              </v-btn>
             </v-card-text>
           </v-card>
 
@@ -554,6 +638,9 @@ const isDownloading = ref(false)
 // Document summary from summaries collection
 const documentSummary = ref<string | null>(null)
 
+// Summarization evaluation state
+const showSummaryEvaluation = ref(false)
+
 // PDF Viewer state
 const pdfViewMode = ref<'interactive' | 'annotated' | 'original'>('interactive')
 const originalPdfUrl = ref<string | null>(null)  // Direct Azure Blob URL (for iframe)
@@ -653,6 +740,24 @@ const extractionStatusChipColor = computed(() => {
 const effectiveSummary = computed(() => {
   return documentSummary.value || document.value?.summary || null
 })
+
+// Summarization evaluation from document
+const summaryEvaluation = computed(() => {
+  return document.value?.summarization_evaluation || null
+})
+
+// Get color for summary evaluation score
+function getSummaryEvaluationColor(score: number): string {
+  if (score >= 0.8) return 'success'
+  if (score >= 0.6) return 'warning'
+  return 'error'
+}
+
+// Format percentage
+function formatPercentage(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  return `${Math.round(value * 100)}%`
+}
 
 onMounted(async () => {
   await documentsStore.fetchDocument(props.caseId, props.documentId)
@@ -757,11 +862,6 @@ function getEvaluationColor(score: number | null | undefined): string {
 function formatScore(score: number | null | undefined): string {
   if (score === null || score === undefined) return '—'
   return score.toFixed(2)
-}
-
-function formatPercentage(score: number | null | undefined): string {
-  if (score === null || score === undefined) return '—'
-  return `${(score * 100).toFixed(0)}%`
 }
 
 function getFieldStyle(field: ExtractedFieldResult) {

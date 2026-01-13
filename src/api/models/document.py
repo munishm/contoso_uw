@@ -76,6 +76,30 @@ class DocumentExtractionResult(BaseModel):
 
 
 # =============================================================================
+# Summarization Evaluation Models
+# =============================================================================
+
+class SummarizationEvaluatorScore(BaseModel):
+    """Individual evaluator score for summarization."""
+    
+    score: float = Field(..., ge=0.0, le=1.0, description="Evaluator score (0-1)")
+    feedback: Optional[str] = Field(None, description="Feedback from evaluator")
+    success: bool = Field(default=True, description="Whether evaluation succeeded")
+
+
+class SummarizationEvaluationResult(BaseModel):
+    """Summarization evaluation results."""
+    
+    overall_score: Optional[float] = Field(None, ge=0.0, le=1.0, description="Overall evaluation score")
+    final_composite_score: float = Field(..., ge=0.0, le=1.0, description="Weighted composite score")
+    weights: Optional[dict[str, float]] = Field(None, description="Weights used for each evaluator")
+    evaluations: Optional[dict[str, SummarizationEvaluatorScore]] = Field(
+        None, description="Per-evaluator scores (entity_coverage, groundedness, semantic_fidelity)"
+    )
+    evaluated_at: Optional[datetime] = Field(None, description="When evaluation was performed")
+
+
+# =============================================================================
 # Document API Models
 # =============================================================================
 
@@ -176,6 +200,10 @@ class DocumentDetailResponse(BaseModel):
     # Extraction results embedded in document
     extraction: Optional[DocumentExtractionResult] = Field(
         default=None, description="Entity extraction results"
+    )
+    # Summarization evaluation results
+    summarization_evaluation: Optional[SummarizationEvaluationResult] = Field(
+        default=None, description="Summarization quality evaluation results"
     )
 
     model_config = ConfigDict(from_attributes=True)

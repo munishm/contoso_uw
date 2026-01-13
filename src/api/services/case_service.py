@@ -494,33 +494,73 @@ class CaseService:
                 # ========== UPDATE DOCUMENTS WITH SUMMARIES ==========
                 # Update each document record with its corresponding summary
                 logger.info("-" * 60)
-                logger.info("UPDATING DOCUMENTS WITH SUMMARIES")
+                logger.info("UPDATING DOCUMENTS WITH SUMMARIES AND EVALUATIONS")
                 logger.info("-" * 60)
                 
-                # Build lookup of summaries by document type
+                # Build lookup of summaries and evaluations by document type
                 summary_by_doc_type = {}
+                evaluation_by_doc_type = {}
                 for summary_data in summaries:
                     doc_type = summary_data.get('document_type')
+                    logger.info(f"  Processing summary for {doc_type}:")
+                    logger.info(f"    - status: {summary_data.get('status')}")
+                    logger.info(f"    - has summary: {bool(summary_data.get('summary'))}")
+                    logger.info(f"    - has evaluation: {bool(summary_data.get('evaluation'))}")
+                    if summary_data.get('evaluation'):
+                        eval_data = summary_data.get('evaluation')
+                        logger.info(f"    - evaluation success: {eval_data.get('success')}")
+                        logger.info(f"    - evaluation score: {eval_data.get('final_composite_score')}")
+                    
                     if doc_type and summary_data.get('status') == 'success' and summary_data.get('summary'):
                         summary_by_doc_type[doc_type] = summary_data.get('summary')
+                        # Also store evaluation if present
+                        if summary_data.get('evaluation'):
+                            evaluation_by_doc_type[doc_type] = summary_data.get('evaluation')
+                            logger.info(f"    ✓ Stored evaluation for {doc_type}")
                 
-                # Update each created document with its summary
+                logger.info(f"  Summaries collected: {list(summary_by_doc_type.keys())}")
+                logger.info(f"  Evaluations collected: {list(evaluation_by_doc_type.keys())}")
+                
+                # Update each created document with its summary and evaluation
                 for document_id in created_document_ids:
                     try:
                         doc = await self.document_repo.get_document(document_id, case_id)
                         if doc:
                             doc_type = doc.get('classification')
                             doc_summary = summary_by_doc_type.get(doc_type)
+                            doc_evaluation = evaluation_by_doc_type.get(doc_type)
+                            
                             if doc_summary:
+                                update_data = {
+                                    "summary": doc_summary,
+                                    "updated_at": now.isoformat(),
+                                }
+                                
+                                # Add summarization evaluation if available
+                                if doc_evaluation and doc_evaluation.get('success'):
+                                    update_data["summarization_evaluation"] = {
+                                        "overall_score": doc_evaluation.get('overall_score'),
+                                        "final_composite_score": doc_evaluation.get('final_composite_score'),
+                                        "weights": doc_evaluation.get('weights'),
+                                        "evaluations": {
+                                            eval_name: {
+                                                "score": eval_data.get('score'),
+                                                "feedback": eval_data.get('feedback'),
+                                                "success": eval_data.get('success', True)
+                                            }
+                                            for eval_name, eval_data in doc_evaluation.get('evaluations', {}).items()
+                                        },
+                                        "evaluated_at": now.isoformat()
+                                    }
+                                    logger.info(f"  ✓ Updated document {document_id} ({doc_type}) with summary ({len(doc_summary)} chars) and evaluation (score: {doc_evaluation.get('final_composite_score', 0):.3f})")
+                                else:
+                                    logger.info(f"  ✓ Updated document {document_id} ({doc_type}) with summary ({len(doc_summary)} chars)")
+                                
                                 await self.document_repo.update_document(
                                     document_id,
                                     case_id,
-                                    {
-                                        "summary": doc_summary,
-                                        "updated_at": now.isoformat(),
-                                    }
+                                    update_data
                                 )
-                                logger.info(f"  ✓ Updated document {document_id} ({doc_type}) with summary ({len(doc_summary)} chars)")
                             else:
                                 logger.info(f"  - No summary for document {document_id} ({doc_type})")
                     except Exception as sum_err:

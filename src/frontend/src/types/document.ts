@@ -124,6 +124,19 @@ export interface FieldColorsResponse {
   fields: Record<string, FieldColorInfo>
 }
 
+// Summarization evaluation result
+export interface SummarizationEvaluationResult {
+  overall_score?: number
+  final_composite_score: number
+  weights?: Record<string, number>
+  evaluations?: {
+    entity_coverage?: { score: number; feedback?: string }
+    groundedness?: { score: number; feedback?: string }
+    semantic_fidelity?: { score: number; feedback?: string }
+  }
+  evaluated_at?: string
+}
+
 export interface Document {
   document_id: string
   case_id: string
@@ -136,6 +149,7 @@ export interface Document {
   confidence_score?: number | null
   extracted_text?: string | null
   summary?: string | null
+  summarization_evaluation?: SummarizationEvaluationResult | null
   source?: string | null
   parent_document_id?: string | null
   page_range?: string | null
