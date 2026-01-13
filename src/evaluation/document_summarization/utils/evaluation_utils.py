@@ -58,30 +58,76 @@ def extract_numeric_values(text: str) -> List[float]:
     return [float(x) for x in re.findall(r'\d+(?:\.\d+)?', text)]
 
 
-def normalize_text(text: str) -> list[str]:
+# def normalize_text(text: str) -> list[str]:
+#     """
+#     Normalize text into lowercase alphanumeric tokens while preserving
+#     abbreviations like "U.S.A." or initials like "J.K." as single tokens.
+#     """
+#     text = text.lower()
+    
+#     # Replace punctuation **except periods inside abbreviations**
+#     # Step 1: temporarily protect abbreviations (letters separated by dots)
+#     protected = re.findall(r'(?:[a-z]\.){2,}', text)  # e.g., u.s.a., j.k.
+#     for i, abbrev in enumerate(protected):
+#         placeholder = f"__ABBR{i}__"
+#         text = text.replace(abbrev, placeholder)
+    
+#     # Step 2: remove remaining non-alphanumeric characters
+#     text = re.sub(r'[^a-z0-9\s]', ' ', text)
+    
+#     # Step 3: restore abbreviations
+#     for i, abbrev in enumerate(protected):
+#         placeholder = f"__ABBR{i}__"
+#         text = text.replace(placeholder, abbrev.replace('.', ''))  # remove dots for token
+    
+#     # Step 4: split on whitespace
+#     return [token for token in text.split() if token]
+
+
+MONTH_CANONICAL_MAP = {
+    "jan": "january",
+    "feb": "february",
+    "mar": "march",
+    "apr": "april",
+    "may": "may",
+    "jun": "june",
+    "jul": "july",
+    "aug": "august",
+    "sep": "september",
+    "sept": "september",
+    "oct": "october",
+    "nov": "november",
+    "dec": "december",
+}
+
+def normalize_text(text: str) -> List[str]:
     """
     Normalize text into lowercase alphanumeric tokens while preserving
     abbreviations like "U.S.A." or initials like "J.K." as single tokens.
     """
     text = text.lower()
-    
-    # Replace punctuation **except periods inside abbreviations**
+
     # Step 1: temporarily protect abbreviations (letters separated by dots)
     protected = re.findall(r'(?:[a-z]\.){2,}', text)  # e.g., u.s.a., j.k.
     for i, abbrev in enumerate(protected):
         placeholder = f"__ABBR{i}__"
         text = text.replace(abbrev, placeholder)
-    
+
     # Step 2: remove remaining non-alphanumeric characters
     text = re.sub(r'[^a-z0-9\s]', ' ', text)
-    
-    # Step 3: restore abbreviations
+
+    # Step 3: restore abbreviations (remove dots)
     for i, abbrev in enumerate(protected):
         placeholder = f"__ABBR{i}__"
-        text = text.replace(placeholder, abbrev.replace('.', ''))  # remove dots for token
-    
+        text = text.replace(placeholder, abbrev.replace('.', ''))
+
     # Step 4: split on whitespace
-    return [token for token in text.split() if token]
+    tokens = [token for token in text.split() if token]
+
+    # Step 5: canonicalize month abbreviations
+    tokens = [MONTH_CANONICAL_MAP.get(token, token) for token in tokens]
+
+    return tokens
 
 
 def calculate_average_score(results: List[Dict[str, Any]]) -> float:
