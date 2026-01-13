@@ -1,9 +1,10 @@
 """Service for schema-based document extraction."""
 
+import asyncio
 import logging
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
 import jsonschema
@@ -191,92 +192,44 @@ class SchemaExtractionService:
             # 3. Determine which model(s) to use
             extraction_config = schema_version.extraction_config
             models = extraction_config.get("models", [])
+            combination_strategy = extraction_config.get("combination_strategy", "sequential")
+            conflict_resolution = extraction_config.get("conflict_resolution", "flag_for_review")
             logger.info(f"  extraction_config.models: {len(models)} configured")
+            logger.info(f"  combination_strategy: {combination_strategy}")
+            logger.info(f"  conflict_resolution: {conflict_resolution}")
             
             if not models:
                 logger.error(f"  ✗ No models configured in extraction_config")
                 raise ValueError("No models configured for this schema version")
             
-            # For MVP, use first primary model (Phase 4 will add multi-model support)
-            primary_model = next(
-                (m for m in models if m.get("strategy") == "primary"),
-                models[0]
+            # Execute multi-model extraction based on strategy
+            raw_results, models_used = await self._execute_multi_model_extraction(
+                document_content=document_content,
+                document_type=document_type,
+                schema_version=schema_version,
+                model_configs=models,
+                combination_strategy=combination_strategy,
+                conflict_resolution=conflict_resolution
             )
-            logger.info(f"  Primary model config: {primary_model}")
             
-            # Fetch model from database
-            model_id = UUID(primary_model.get("model_id"))
-            logger.info(f"  Looking up model_id: {model_id}")
-            db_model = await self.model_repo.get_model(model_id)
-            
-            if not db_model:
-                logger.error(f"  ✗ Model {model_id} not found in registry")
-                raise ValueError(f"Model {model_id} not found in registry")
-            
-            logger.info(f"  ✓ Found model: {db_model.name}, type={db_model.type}, active={db_model.is_active}")
-            
-            if not db_model.is_active:
-                logger.error(f"  ✗ Model {db_model.name} is not active")
-                raise ValueError(f"Model {db_model.name} is not active")
-            
-            # Create adapter dynamically based on model type
-            logger.info(f"  Creating adapter for model type: {db_model.type}")
-            if db_model.type == ModelType.VISION:
-                logger.info(f"    endpoint: {db_model.endpoint}")
-                logger.info(f"    deployment/version: {db_model.version}")
-                logger.info(f"    api_version: {db_model.api_version}")
-                
-                # Get Document Intelligence config for precise bounding boxes
-                config = get_config()
-                di_endpoint = config.doc_intelligence_endpoint
-                di_key = config.doc_intelligence_key
-                
-                print(f"[SchemaExtractionService] Document Intelligence config from ExtractionConfig:")
-                print(f"  - doc_intelligence_endpoint: {di_endpoint}")
-                print(f"  - doc_intelligence_key: {'***' if di_key else 'None (using DefaultAzureCredential)'}")
-                
-                adapter = AzureOpenAIVisionAdapter(
-                    endpoint=db_model.endpoint,
-                    api_key=None,  # Use Azure AD
-                    deployment=db_model.version,
-                    api_version=db_model.api_version or "2024-02-15-preview",
-                    doc_intelligence_endpoint=di_endpoint,
-                    doc_intelligence_key=di_key
-                )
-            else:
-                logger.error(f"  ✗ Unsupported model type: {db_model.type}")
-                raise ValueError(f"Unsupported model type: {db_model.type}")
-            
-            model_name = db_model.name
-            
-            # 4. Execute extraction
-            field_names = primary_model.get("fields", ["*"])
-            logger.info(f"  Calling adapter.extract() with fields: {field_names}")
-            raw_results = await adapter.extract(
-                document_content,
-                document_type.name,
-                schema_version,
-                field_names
-            )
-            logger.info(f"  ✓ Extraction returned {len(raw_results)} raw fields")
+            extraction.models_used = models_used
+            logger.info(f"  ✓ Extraction returned {len(raw_results)} raw fields from {len(models_used)} models")
             logger.info(f"  Raw results: {list(raw_results.keys())}")
             
-            extraction.models_used = [model_name]
-            
-            # 5. Map extracted data to output schema fields
+            # 4. Map extracted data to output schema fields (model_source from merged results)
             extracted_fields = self._map_to_output_schema(
                 raw_results,
                 schema_version,
-                model_name
+                ", ".join(models_used)  # Default model source (overridden per field from merged data)
             )
             
-            # 6. Handle missing required fields
+            # 5. Handle missing required fields
             extracted_fields = self._handle_missing_fields(
                 extracted_fields,
                 schema_version
             )
             
-            # 7. Validate against output schema
+            # 6. Validate against output schema
             validation_errors = self._validate_output(extracted_fields, schema_version)
             if validation_errors:
                 extraction.error_message = f"Validation errors: {validation_errors}"
@@ -291,7 +244,7 @@ class SchemaExtractionService:
             print(f"\n>>> Step 8: About to run evaluation")
             print(f">>> enable_evaluation={self.enable_evaluation}, evaluation_service={self.evaluation_service is not None}")
             
-            # 8. Run batch evaluation if enabled
+            # 7. Run batch evaluation if enabled
             evaluation_results = None
             logger.info(f"[Evaluation] Check: enable_evaluation={self.enable_evaluation}, evaluation_service={self.evaluation_service is not None}")
             if self.enable_evaluation and self.evaluation_service:
@@ -299,7 +252,8 @@ class SchemaExtractionService:
                     eval_start = time.time()
                     logger.info("Running batch evaluation...")
                     print(f">>> Running batch evaluation...")
-                    # Pass the adapter to reuse OCR text from extraction
+                    # Pass the last adapter used (stored during multi-model extraction)
+                    adapter = getattr(self, '_last_adapter', None)
                     evaluation_results = await self._evaluate_extraction(
                         extraction, document_content, adapter
                     )
@@ -320,8 +274,8 @@ class SchemaExtractionService:
                 logger.info("[Evaluation] Skipped - not enabled or service not available")
                 print(f">>> Evaluation SKIPPED")
             
-            # 9. Save result with evaluation
-            print(f"\n>>> Step 9: Saving extraction with evaluation_results={evaluation_results is not None}")
+            # 8. Save result with evaluation
+            print(f"\n>>> Step 8: Saving extraction with evaluation_results={evaluation_results is not None}")
             if evaluation_results:
                 print(f">>> Evaluation results structure: total_fields={evaluation_results.get('total_fields')}, results_count={len(evaluation_results.get('results', []))}")
                 import json
@@ -351,7 +305,343 @@ class SchemaExtractionService:
             self._log_extraction(extraction, "unknown", version, success=False)
             
             raise
-    
+
+    async def _execute_multi_model_extraction(
+        self,
+        document_content: bytes,
+        document_type: Any,
+        schema_version: DocumentTypeVersion,
+        model_configs: List[Dict[str, Any]],
+        combination_strategy: str,
+        conflict_resolution: str
+    ) -> Tuple[Dict[str, Any], List[str]]:
+        """
+        Execute extraction using multiple models based on strategy.
+        
+        Args:
+            document_content: Document bytes
+            document_type: Document type object
+            schema_version: Schema version with field definitions
+            model_configs: List of model configurations
+            combination_strategy: How to combine results (sequential, parallel, ensemble, hybrid)
+            conflict_resolution: How to resolve conflicts (highest_confidence, flag_for_review, average, vote)
+        
+        Returns:
+            Tuple of (merged_results, list_of_models_used)
+        """
+        logger.info(f"  Multi-model extraction: {len(model_configs)} models, strategy={combination_strategy}")
+        
+        # Sort models by order
+        sorted_models = sorted(model_configs, key=lambda m: m.get("order", 999))
+        
+        # Group by strategy
+        primary_models = [m for m in sorted_models if m.get("strategy") == "primary"]
+        fallback_models = [m for m in sorted_models if m.get("strategy") == "fallback"]
+        parallel_models = [m for m in sorted_models if m.get("strategy") == "parallel"]
+        
+        all_results: List[Tuple[Dict[str, Any], str, List[str]]] = []
+        models_used = []
+        
+        # Execute based on combination strategy
+        if combination_strategy == "parallel":
+            # Run all models concurrently
+            logger.info("  Executing parallel extraction...")
+            tasks = []
+            for model_config in sorted_models:
+                tasks.append(self._run_single_model(
+                    document_content, document_type, schema_version, model_config
+                ))
+            
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result, model_config in zip(results, sorted_models):
+                if isinstance(result, Exception):
+                    logger.error(f"  Model {model_config.get('model_id')} failed: {result}")
+                    continue
+                raw_result, model_name = result
+                fields = model_config.get("fields", ["*"])
+                all_results.append((raw_result, model_name, fields))
+                models_used.append(model_name)
+                
+        elif combination_strategy == "sequential":
+            # Run primary first, then fallback if needed, parallel run concurrently
+            logger.info("  Executing sequential extraction...")
+            
+            # 1. Run primary model(s)
+            for model_config in primary_models:
+                try:
+                    raw_result, model_name = await self._run_single_model(
+                        document_content, document_type, schema_version, model_config
+                    )
+                    fields = model_config.get("fields", ["*"])
+                    all_results.append((raw_result, model_name, fields))
+                    models_used.append(model_name)
+                except Exception as e:
+                    logger.error(f"  Primary model {model_config.get('model_id')} failed: {e}")
+                    # Try fallback models
+                    for fb_config in fallback_models:
+                        try:
+                            raw_result, model_name = await self._run_single_model(
+                                document_content, document_type, schema_version, fb_config
+                            )
+                            fields = fb_config.get("fields", ["*"])
+                            all_results.append((raw_result, model_name, fields))
+                            models_used.append(model_name)
+                            break  # Use first successful fallback
+                        except Exception as fb_e:
+                            logger.error(f"  Fallback model {fb_config.get('model_id')} failed: {fb_e}")
+            
+            # 2. Run parallel models concurrently (for additional field coverage)
+            if parallel_models:
+                tasks = [
+                    self._run_single_model(document_content, document_type, schema_version, m)
+                    for m in parallel_models
+                ]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for result, model_config in zip(results, parallel_models):
+                    if isinstance(result, Exception):
+                        logger.error(f"  Parallel model {model_config.get('model_id')} failed: {result}")
+                        continue
+                    raw_result, model_name = result
+                    fields = model_config.get("fields", ["*"])
+                    all_results.append((raw_result, model_name, fields))
+                    models_used.append(model_name)
+                    
+        elif combination_strategy == "ensemble":
+            # Run all models, vote/average on results
+            logger.info("  Executing ensemble extraction...")
+            tasks = []
+            for model_config in sorted_models:
+                tasks.append(self._run_single_model(
+                    document_content, document_type, schema_version, model_config
+                ))
+            
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result, model_config in zip(results, sorted_models):
+                if isinstance(result, Exception):
+                    logger.error(f"  Model {model_config.get('model_id')} failed: {result}")
+                    continue
+                raw_result, model_name = result
+                fields = model_config.get("fields", ["*"])
+                all_results.append((raw_result, model_name, fields))
+                models_used.append(model_name)
+        
+        else:  # hybrid or default
+            # Run primary, then selective parallel for specific fields
+            logger.info(f"  Executing {combination_strategy} extraction...")
+            for model_config in sorted_models:
+                try:
+                    raw_result, model_name = await self._run_single_model(
+                        document_content, document_type, schema_version, model_config
+                    )
+                    fields = model_config.get("fields", ["*"])
+                    all_results.append((raw_result, model_name, fields))
+                    models_used.append(model_name)
+                except Exception as e:
+                    logger.error(f"  Model {model_config.get('model_id')} failed: {e}")
+        
+        if not all_results:
+            raise ValueError("All models failed during extraction")
+        
+        # Merge results based on conflict resolution
+        merged_results = self._merge_model_results(all_results, conflict_resolution, schema_version)
+        
+        logger.info(f"  Multi-model extraction complete: {len(models_used)} models, {len(merged_results)} fields")
+        return merged_results, models_used
+
+    async def _run_single_model(
+        self,
+        document_content: bytes,
+        document_type: Any,
+        schema_version: DocumentTypeVersion,
+        model_config: Dict[str, Any]
+    ) -> Tuple[Dict[str, Any], str]:
+        """
+        Run extraction with a single model.
+        
+        Returns:
+            Tuple of (raw_results, model_name)
+        """
+        model_id = UUID(model_config.get("model_id"))
+        db_model = await self.model_repo.get_model(model_id)
+        
+        if not db_model:
+            raise ValueError(f"Model {model_id} not found")
+        if not db_model.is_active:
+            raise ValueError(f"Model {db_model.name} is not active")
+        
+        # Create adapter
+        if db_model.type == ModelType.VISION:
+            config = get_config()
+            adapter = AzureOpenAIVisionAdapter(
+                endpoint=db_model.endpoint,
+                api_key=None,
+                deployment=db_model.version,
+                api_version=db_model.api_version or "2024-02-15-preview",
+                doc_intelligence_endpoint=config.doc_intelligence_endpoint,
+                doc_intelligence_key=config.doc_intelligence_key
+            )
+        else:
+            raise ValueError(f"Unsupported model type: {db_model.type}")
+        
+        # Get fields to extract
+        field_names = model_config.get("fields", ["*"])
+        
+        # Execute extraction
+        raw_results = await adapter.extract(
+            document_content,
+            document_type.name,
+            schema_version,
+            field_names
+        )
+        
+        # Store adapter for evaluation (last adapter used)
+        self._last_adapter = adapter
+        
+        return raw_results, db_model.name
+
+    def _merge_model_results(
+        self,
+        all_results: List[Tuple[Dict[str, Any], str, List[str]]],
+        conflict_resolution: str,
+        schema_version: DocumentTypeVersion
+    ) -> Dict[str, Any]:
+        """
+        Merge results from multiple models based on conflict resolution strategy.
+        
+        Args:
+            all_results: List of (raw_results, model_name, fields_extracted) tuples
+            conflict_resolution: Strategy for resolving conflicts
+            schema_version: Schema for field definitions
+        
+        Returns:
+            Merged results dictionary
+        """
+        if len(all_results) == 1:
+            # Only one model, return its results directly
+            return all_results[0][0]
+        
+        merged = {}
+        output_schema = schema_version.output_schema
+        all_fields = output_schema.get("properties", {}).keys()
+        
+        for field_name in all_fields:
+            # Collect all values for this field across models
+            field_values = []
+            for raw_results, model_name, fields_list in all_results:
+                # Check if this model was supposed to extract this field
+                if "*" not in fields_list and field_name not in fields_list:
+                    continue
+                    
+                if field_name in raw_results:
+                    result = raw_results[field_name]
+                    value = result.get("value")
+                    confidence = result.get("confidence", 0.0)
+                    citations = result.get("citations", [])
+                    field_values.append({
+                        "value": value,
+                        "confidence": confidence,
+                        "citations": citations,
+                        "model": model_name
+                    })
+            
+            if not field_values:
+                # No model extracted this field
+                merged[field_name] = {
+                    "value": None,
+                    "confidence": 0.0,
+                    "citations": [],
+                    "model_source": "none"
+                }
+                continue
+            
+            if len(field_values) == 1:
+                # Only one model provided this field
+                fv = field_values[0]
+                merged[field_name] = {
+                    "value": fv["value"],
+                    "confidence": fv["confidence"],
+                    "citations": fv["citations"],
+                    "model_source": fv["model"]
+                }
+                continue
+            
+            # Multiple models provided values - resolve conflict
+            if conflict_resolution == "highest_confidence":
+                # Use value with highest confidence
+                best = max(field_values, key=lambda x: x["confidence"])
+                merged[field_name] = {
+                    "value": best["value"],
+                    "confidence": best["confidence"],
+                    "citations": best["citations"],
+                    "model_source": best["model"]
+                }
+                
+            elif conflict_resolution == "vote":
+                # Use most common value (simple voting)
+                value_counts = {}
+                for fv in field_values:
+                    v = str(fv["value"])
+                    if v not in value_counts:
+                        value_counts[v] = {"count": 0, "best_fv": fv}
+                    value_counts[v]["count"] += 1
+                    if fv["confidence"] > value_counts[v]["best_fv"]["confidence"]:
+                        value_counts[v]["best_fv"] = fv
+                
+                winner = max(value_counts.values(), key=lambda x: (x["count"], x["best_fv"]["confidence"]))
+                best = winner["best_fv"]
+                merged[field_name] = {
+                    "value": best["value"],
+                    "confidence": best["confidence"],
+                    "citations": best["citations"],
+                    "model_source": f"vote:{best['model']}"
+                }
+                
+            elif conflict_resolution == "average":
+                # Average numeric values, take highest confidence for non-numeric
+                numeric_values = []
+                for fv in field_values:
+                    try:
+                        numeric_values.append((float(fv["value"]), fv["confidence"]))
+                    except (TypeError, ValueError):
+                        pass
+                
+                if numeric_values and len(numeric_values) == len(field_values):
+                    # All values are numeric, average them
+                    avg_value = sum(v for v, _ in numeric_values) / len(numeric_values)
+                    avg_conf = sum(c for _, c in numeric_values) / len(numeric_values)
+                    merged[field_name] = {
+                        "value": avg_value,
+                        "confidence": avg_conf,
+                        "citations": field_values[0]["citations"],  # Use first model's citations
+                        "model_source": "average"
+                    }
+                else:
+                    # Non-numeric, fall back to highest confidence
+                    best = max(field_values, key=lambda x: x["confidence"])
+                    merged[field_name] = {
+                        "value": best["value"],
+                        "confidence": best["confidence"],
+                        "citations": best["citations"],
+                        "model_source": best["model"]
+                    }
+                    
+            else:  # flag_for_review or default
+                # Take highest confidence but flag for review if values differ
+                values_agree = len(set(str(fv["value"]) for fv in field_values)) == 1
+                best = max(field_values, key=lambda x: x["confidence"])
+                
+                merged[field_name] = {
+                    "value": best["value"],
+                    "confidence": best["confidence"],
+                    "citations": best["citations"],
+                    "model_source": best["model"],
+                    "needs_review": not values_agree,
+                    "review_reason": "Models disagree" if not values_agree else None,
+                    "all_values": [{"model": fv["model"], "value": fv["value"], "confidence": fv["confidence"]} for fv in field_values]
+                }
+        
+        return merged
+
     def _map_to_output_schema(
         self,
         raw_results: Dict[str, Any],
@@ -362,9 +652,9 @@ class SchemaExtractionService:
         Map raw extraction results to output schema format.
         
         Args:
-            raw_results: Raw results from model adapter
+            raw_results: Raw results from model adapter or merged multi-model results
             schema_version: Schema defining output structure
-            model_source: Name of model that produced results
+            model_source: Default model name (used if not in result)
         
         Returns:
             List of extracted fields
@@ -380,14 +670,18 @@ class SchemaExtractionService:
             confidence = field_result.get("confidence", 0.0)
             citations = field_result.get("citations", [])
             
-            # Determine if review is needed
-            needs_review = False
-            review_reason = None
+            # Get model source from result (for multi-model), fallback to default
+            field_model_source = field_result.get("model_source", model_source)
             
-            if value is None:
+            # Check for multi-model review flags
+            needs_review = field_result.get("needs_review", False)
+            review_reason = field_result.get("review_reason")
+            
+            # Additional review checks
+            if value is None and not needs_review:
                 needs_review = True
                 review_reason = "Field not found in document"
-            elif confidence < schema_version.confidence_threshold:
+            elif confidence < schema_version.confidence_threshold and not needs_review:
                 needs_review = True
                 review_reason = f"Confidence {confidence:.2f} below threshold {schema_version.confidence_threshold}"
             
@@ -402,7 +696,7 @@ class SchemaExtractionService:
                 citations=citations,
                 needs_review=needs_review,
                 review_reason=review_reason,
-                model_source=model_source
+                model_source=field_model_source
             )
             fields.append(field)
         
@@ -536,8 +830,13 @@ class SchemaExtractionService:
             # Try to get OCR text from adapter (already extracted during extraction)
             source_text = None
             ocr_source = "unknown"
+            print(f"\n[_evaluate_extraction] Adapter check:")
+            print(f"  adapter is None: {adapter is None}")
+            print(f"  adapter has get_ocr_text: {hasattr(adapter, 'get_ocr_text') if adapter else 'N/A'}")
+            
             if adapter and hasattr(adapter, 'get_ocr_text'):
                 source_text = adapter.get_ocr_text()
+                print(f"  adapter.get_ocr_text() returned: {len(source_text) if source_text else 'None/empty'} chars")
                 if source_text:
                     ocr_source = "adapter_cache"
                     logger.info(f"[Evaluation] Using cached OCR text from extraction adapter ({len(source_text)} chars)")
@@ -546,15 +845,21 @@ class SchemaExtractionService:
             if not source_text:
                 ocr_source = "document_extraction"
                 logger.info("[Evaluation] No cached OCR text, extracting from document...")
+                print(f"  Falling back to document extraction...")
                 source_text = self._extract_text_from_document(document_content)
+                print(f"  Extracted from document: {len(source_text) if source_text else 0} chars")
                 logger.info(f"[Evaluation] Extracted {len(source_text)} chars from document")
+            
+            print(f"  Final source_text length: {len(source_text) if source_text else 0}")
+            # Only print first 100 chars to avoid flooding logs
+            sample = source_text[:100].replace('\n', ' ') if source_text else 'EMPTY'
+            print(f"  Source sample (first 100 chars): {sample}...")
             
             # Prepare fields for evaluation with page info from citations
             fields_to_evaluate = []
             
-            print(f"\n[_evaluate_extraction] DEBUG:")
+            print(f"\n[_evaluate_extraction] Fields to evaluate:")
             print(f"  extraction.fields count: {len(extraction.fields)}")
-            print(f"  extraction.fields: {[f.field_name for f in extraction.fields]}")
             
             for field in extraction.fields:
                 # Include all fields, even those with None values
@@ -566,40 +871,51 @@ class SchemaExtractionService:
                 if field.citations and len(field.citations) > 0:
                     field_data["page"] = field.citations[0].page
                 fields_to_evaluate.append(field_data)
+                # Print each field being evaluated
+                val_preview = str(field.value)[:50] if field.value else "None"
+                print(f"    - {field.field_name}: '{val_preview}'")
             
-            print(f"  fields_to_evaluate count: {len(fields_to_evaluate)}")
-            print(f"  fields_to_evaluate: {[f['field_name'] for f in fields_to_evaluate]}")
+            print(f"  Total fields: {len(fields_to_evaluate)}")
             
             if not fields_to_evaluate:
                 logger.warning("[Evaluation] No fields to evaluate")
                 return None
             
             logger.info(f"[Evaluation] Evaluating {len(fields_to_evaluate)} fields using {ocr_source} text source")
-            logger.debug(f"[Evaluation] Fields to evaluate: {[f['field_name'] for f in fields_to_evaluate]}")
             
             # Run batch evaluation with both correctness and completeness
+            print(f"\n[_evaluate_extraction] Calling evaluate_batch...")
             eval_results = self.evaluation_service.evaluate_batch(
                 fields=fields_to_evaluate,
                 source_text=source_text,
                 evaluators=["correctness", "completeness"]
             )
             
-            # Log individual field results (evaluation service returns 'results' not 'field_results')
+            # Log individual field results
+            print(f"\n[_evaluate_extraction] Evaluation Results:")
             if eval_results and 'results' in eval_results:
-                logger.info(f"[Evaluation] Got {len(eval_results['results'])} evaluation results")
+                print(f"  Total results: {len(eval_results['results'])}")
                 for field_result in eval_results['results']:
                     field_name = field_result.get('field_name')
                     correctness_eval = field_result.get('evaluations', {}).get('correctness', {})
-                    correctness = correctness_eval.get('score', 'N/A')
-                    extraction_correct = correctness_eval.get('extraction_correct', False)
-                    logger.debug(f"[Evaluation] {field_name}: correctness={correctness}, correct={extraction_correct}")
+                    score = correctness_eval.get('score', 'N/A')
+                    fuzzy = correctness_eval.get('fuzzy_score', 'N/A')
+                    correct = correctness_eval.get('extraction_correct', False)
+                    print(f"    - {field_name}: score={score}, fuzzy={fuzzy}, correct={correct}")
+                
+                # Print aggregate
+                agg = eval_results.get('aggregate_summary', {})
+                print(f"\n  Aggregate Summary:")
+                print(f"    average_correctness_score: {agg.get('average_correctness_score', 'N/A')}")
+                print(f"    fields_correct: {agg.get('fields_correct', 0)}/{eval_results.get('total_fields', len(fields_to_evaluate))}")
             else:
-                logger.warning(f"[Evaluation] No results returned. eval_results keys: {eval_results.keys() if eval_results else 'None'}")
+                print(f"  WARNING: No results returned!")
+                print(f"  eval_results keys: {eval_results.keys() if eval_results else 'None'}")
             
-            print(f">>> _evaluate_extraction returning: {eval_results is not None}, total_fields={eval_results.get('total_fields') if eval_results else 'N/A'}")
             return eval_results
         except Exception as e:
             logger.error(f"Evaluation error: {e}")
+            print(f"[_evaluate_extraction] ERROR: {e}")
             return None
     
     def _extract_text_from_document(self, document_content: bytes) -> str:

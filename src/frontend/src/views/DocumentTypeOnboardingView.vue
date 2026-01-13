@@ -70,27 +70,9 @@
                         accept=".pdf"
                         prepend-icon="mdi-file-pdf-box"
                         variant="outlined"
-                        :disabled="isClassifying"
                         @update:model-value="onFileSelected"
                         class="mb-3"
                       />
-
-                      <v-btn
-                        color="primary"
-                        :disabled="!sampleFile || isClassifying"
-                        :loading="isClassifying"
-                        @click="classifyDocument"
-                        size="small"
-                        class="mb-4"
-                      >
-                        <v-icon start>mdi-brain</v-icon>
-                        Classify Document
-                      </v-btn>
-
-                      <v-alert v-if="classificationResult" type="success" class="mb-4" density="compact">
-                        <div class="text-subtitle-2">Document Type: {{ classificationResult.suggested_name }}</div>
-                        <div class="text-caption">Confidence: {{ (classificationResult.confidence * 100).toFixed(1) }}%</div>
-                      </v-alert>
 
                       <v-divider class="my-4" />
 
@@ -121,37 +103,169 @@
                         variant="outlined"
                         placeholder="1.0.0"
                         :rules="[v => !!v || 'Version is required']"
+                        :disabled="editMode === 'edit'"
+                        :hint="editMode === 'edit' ? 'Version auto-incremented for edits' : ''"
+                        persistent-hint
                         density="compact"
                         class="mb-3"
                       />
 
                       <v-divider class="my-4" />
 
-                      <!-- Extraction Model -->
-                      <h4 class="text-subtitle-1 mb-3">Extraction Model</h4>
+                      <!-- Extraction Models (Multi-Model Support) -->
+                      <h4 class="text-subtitle-1 mb-3">
+                        Extraction Models
+                        <v-chip size="x-small" color="info" class="ml-2">Multi-Model</v-chip>
+                      </h4>
 
-                      <v-select
-                        v-model="selectedModel"
-                        :items="extractionModels"
-                        :item-title="(item) => `${item.name} (${item.version})`"
-                        return-object
-                        label="Select Extraction Model *"
-                        variant="outlined"
-                        :loading="isLoadingModels"
-                        density="compact"
-                        class="mb-3"
-                      />
+                      <v-alert type="info" density="compact" class="mb-3">
+                        Add one or more models for extraction. Use strategies to define how models work together.
+                      </v-alert>
 
-                      <v-chip
-                        v-if="selectedModel"
-                        color="primary"
-                        class="mb-4"
-                        closable
-                        size="small"
-                        @click:close="selectedModel = null"
-                      >
-                        {{ selectedModel.name }} - {{ selectedModel.type }}
-                      </v-chip>
+                      <!-- Configured Models List -->
+                      <v-card v-if="configuredModels.length > 0" variant="outlined" class="mb-3">
+                        <v-list density="compact">
+                          <v-list-item
+                            v-for="(modelConfig, index) in configuredModels"
+                            :key="index"
+                          >
+                            <template #prepend>
+                              <v-avatar :color="getStrategyColor(modelConfig.strategy)" size="32">
+                                <span class="text-caption">{{ modelConfig.order }}</span>
+                              </v-avatar>
+                            </template>
+                            <v-list-item-title>
+                              {{ getModelName(modelConfig.model_id) }}
+                            </v-list-item-title>
+                            <v-list-item-subtitle>
+                              <v-chip size="x-small" :color="getStrategyColor(modelConfig.strategy)" class="mr-1">
+                                {{ modelConfig.strategy }}
+                              </v-chip>
+                              <span class="text-caption">
+                                Fields: {{ modelConfig.fields.join(', ') }}
+                              </span>
+                            </v-list-item-subtitle>
+                            <template #append>
+                              <v-btn
+                                icon="mdi-pencil"
+                                size="x-small"
+                                variant="text"
+                                @click="editModelConfig(index)"
+                              />
+                              <v-btn
+                                icon="mdi-delete"
+                                size="x-small"
+                                variant="text"
+                                color="error"
+                                @click="removeModelConfig(index)"
+                              />
+                            </template>
+                          </v-list-item>
+                        </v-list>
+                      </v-card>
+
+                      <!-- Add Model Form -->
+                      <v-card variant="outlined" class="mb-3 pa-3">
+                        <h5 class="text-subtitle-2 mb-2">
+                          {{ editingModelIndex !== null ? 'Edit Model' : 'Add Model' }}
+                        </h5>
+                        <v-row dense>
+                          <v-col cols="12">
+                            <v-select
+                              v-model="newModelConfig.model_id"
+                              :items="extractionModels"
+                              :item-title="(item) => `${item.name} (${item.version})`"
+                              item-value="id"
+                              label="Select Model *"
+                              variant="outlined"
+                              :loading="isLoadingModels"
+                              density="compact"
+                            />
+                          </v-col>
+                          <v-col cols="6">
+                            <v-select
+                              v-model="newModelConfig.strategy"
+                              :items="modelStrategies"
+                              label="Strategy *"
+                              variant="outlined"
+                              density="compact"
+                            />
+                          </v-col>
+                          <v-col cols="6">
+                            <v-text-field
+                              v-model.number="newModelConfig.order"
+                              type="number"
+                              label="Order"
+                              variant="outlined"
+                              density="compact"
+                              min="1"
+                            />
+                          </v-col>
+                          <v-col cols="12">
+                            <v-combobox
+                              v-model="newModelConfig.fields"
+                              :items="availableFields"
+                              label="Fields (use * for all)"
+                              variant="outlined"
+                              density="compact"
+                              multiple
+                              chips
+                              closable-chips
+                              hint="Select fields this model should extract"
+                            />
+                          </v-col>
+                          <v-col cols="12" class="d-flex justify-end">
+                            <v-btn
+                              v-if="editingModelIndex !== null"
+                              variant="text"
+                              class="mr-2"
+                              @click="cancelEditModelConfig"
+                            >
+                              Cancel
+                            </v-btn>
+                            <v-btn
+                              color="primary"
+                              variant="tonal"
+                              :disabled="!newModelConfig.model_id"
+                              @click="addOrUpdateModelConfig"
+                            >
+                              <v-icon start>{{ editingModelIndex !== null ? 'mdi-check' : 'mdi-plus' }}</v-icon>
+                              {{ editingModelIndex !== null ? 'Update Model' : 'Add Model' }}
+                            </v-btn>
+                          </v-col>
+                        </v-row>
+                      </v-card>
+
+                      <!-- Multi-Model Settings (shown when 2+ models) -->
+                      <v-expand-transition>
+                        <v-card v-if="configuredModels.length > 1" variant="outlined" class="mb-3 pa-3">
+                          <h5 class="text-subtitle-2 mb-2">Multi-Model Settings</h5>
+                          <v-row dense>
+                            <v-col cols="6">
+                              <v-select
+                                v-model="multiModelSettings.combination_strategy"
+                                :items="combinationStrategies"
+                                label="Combination Strategy"
+                                variant="outlined"
+                                density="compact"
+                              />
+                            </v-col>
+                            <v-col cols="6">
+                              <v-select
+                                v-model="multiModelSettings.conflict_resolution"
+                                :items="conflictResolutions"
+                                label="Conflict Resolution"
+                                variant="outlined"
+                                density="compact"
+                              />
+                            </v-col>
+                          </v-row>
+                          <v-alert type="info" density="compact" class="mt-2">
+                            <strong>{{ multiModelSettings.combination_strategy }}:</strong>
+                            {{ getCombinationDescription(multiModelSettings.combination_strategy) }}
+                          </v-alert>
+                        </v-card>
+                      </v-expand-transition>
 
                       <v-divider class="my-4" />
 
@@ -243,38 +357,6 @@
                       />
                     </v-card-text>
                     
-                    <!-- Show uploaded file info -->
-                    <v-card-text class="text-caption">
-                      <v-alert 
-                        v-if="uploadedFile" 
-                        type="success" 
-                        density="compact"
-                        class="mb-2"
-                      >
-                        <v-icon start size="small">mdi-check-circle</v-icon>
-                        File ready: {{ uploadedFile.name }} ({{ (uploadedFile.size / 1024).toFixed(2) }} KB)
-                      </v-alert>
-                      <v-alert 
-                        v-else 
-                        type="warning" 
-                        density="compact"
-                        class="mb-2"
-                      >
-                        <v-icon start size="small">mdi-alert</v-icon>
-                        No file uploaded - Please select a PDF file above
-                      </v-alert>
-                      
-                      <!-- Debug button -->
-                      <v-btn 
-                        size="x-small" 
-                        variant="outlined" 
-                        @click="debugFileState"
-                        class="mt-2"
-                      >
-                        Debug File State
-                      </v-btn>
-                    </v-card-text>
-                    
                     <v-card-actions>
                       <v-spacer />
                       <v-btn
@@ -362,9 +444,22 @@
 
                         <v-divider class="my-4" />
 
+                        <!-- Action Buttons -->
+                        <v-btn
+                          color="primary"
+                          variant="outlined"
+                          @click="runTestExtraction"
+                          :loading="isTesting"
+                          class="mb-2"
+                          block
+                        >
+                          <v-icon start>mdi-refresh</v-icon>
+                          Re-run Test Extraction
+                        </v-btn>
+
                         <v-btn
                           v-if="testResult.recommendation !== 'finalize'"
-                          color="primary"
+                          color="warning"
                           variant="outlined"
                           @click="currentStep = 1"
                           class="mb-2"
@@ -372,17 +467,6 @@
                         >
                           <v-icon start>mdi-tune</v-icon>
                           Adjust Configuration
-                        </v-btn>
-
-                        <v-btn
-                          color="primary"
-                          variant="outlined"
-                          @click="runTestExtraction"
-                          class="mb-2"
-                          block
-                        >
-                          <v-icon start>mdi-refresh</v-icon>
-                          Re-run Test
                         </v-btn>
 
                         <v-btn
@@ -619,6 +703,48 @@ const extractionModels = ref<ExtractionModel[]>([])
 const selectedModel = ref<ExtractionModel | null>(null)
 const isLoadingModels = ref(false)
 
+// Multi-Model Configuration
+interface ModelConfig {
+  model_id: string
+  order: number
+  strategy: 'primary' | 'fallback' | 'parallel'
+  fields: string[]
+}
+
+const configuredModels = ref<ModelConfig[]>([])
+const editingModelIndex = ref<number | null>(null)
+const newModelConfig = ref<ModelConfig>({
+  model_id: '',
+  order: 1,
+  strategy: 'primary',
+  fields: ['*']
+})
+
+const modelStrategies = [
+  { title: 'Primary', value: 'primary' },
+  { title: 'Fallback', value: 'fallback' },
+  { title: 'Parallel', value: 'parallel' }
+]
+
+const combinationStrategies = [
+  { title: 'Sequential', value: 'sequential' },
+  { title: 'Parallel', value: 'parallel' },
+  { title: 'Ensemble', value: 'ensemble' },
+  { title: 'Hybrid', value: 'hybrid' }
+]
+
+const conflictResolutions = [
+  { title: 'Highest Confidence', value: 'highest_confidence' },
+  { title: 'Flag for Review', value: 'flag_for_review' },
+  { title: 'Average', value: 'average' },
+  { title: 'Vote', value: 'vote' }
+]
+
+const multiModelSettings = ref({
+  combination_strategy: 'sequential',
+  conflict_resolution: 'flag_for_review'
+})
+
 const config = ref<OnboardingTestConfig>({
   document_type_name: '',
   description: '',
@@ -673,7 +799,7 @@ const isConfigValid = computed(() => {
   const valid = (
     config.value.document_type_name.trim() !== '' &&
     config.value.version.trim() !== '' &&
-    selectedModel.value !== null &&
+    configuredModels.value.length > 0 &&  // Changed: at least one model configured
     Object.keys(parsedInputSchema.value).length > 0 &&
     Object.keys(parsedOutputSchema.value).length > 0 &&
     uploadedFile.value !== null  // Check if file is uploaded
@@ -681,13 +807,22 @@ const isConfigValid = computed(() => {
   console.log('isConfigValid check:', {
     name: config.value.document_type_name.trim() !== '',
     version: config.value.version.trim() !== '',
-    model: selectedModel.value !== null,
+    models: configuredModels.value.length > 0,
     inputSchema: Object.keys(parsedInputSchema.value).length > 0,
     outputSchema: Object.keys(parsedOutputSchema.value).length > 0,
     file: uploadedFile.value !== null,
     result: valid
   })
   return valid
+})
+
+// Available fields from input schema
+const availableFields = computed(() => {
+  const schema = parsedInputSchema.value
+  if (schema.properties) {
+    return ['*', ...Object.keys(schema.properties)]
+  }
+  return ['*', ...Object.keys(schema)]
 })
 
 // Methods
@@ -739,12 +874,40 @@ async function loadDocumentTypeDetails() {
       config.value.document_type_id = selectedDocumentTypeId.value
       config.value.document_type_name = docType.name
       config.value.description = docType.description || ''
-      config.value.version = latestVersion.version
+      
+      // Auto-increment version for edit mode
+      const currentVersion = latestVersion.version
+      const versionParts = currentVersion.split('.')
+      if (versionParts.length === 3) {
+        // Increment patch version
+        versionParts[2] = String(parseInt(versionParts[2]) + 1)
+        config.value.version = versionParts.join('.')
+      } else {
+        config.value.version = currentVersion
+      }
+      
       inputSchemaJson.value = JSON.stringify(latestVersion.input_schema, null, 2)
       outputSchemaJson.value = JSON.stringify(latestVersion.output_schema, null, 2)
       config.value.extraction_config = latestVersion.extraction_config
       config.value.citation_level = latestVersion.citation_level
       config.value.confidence_threshold = latestVersion.confidence_threshold
+
+      // Load configured models from existing extraction config
+      if (latestVersion.extraction_config?.models) {
+        configuredModels.value = latestVersion.extraction_config.models.map((m: any) => ({
+          model_id: m.model_id,
+          order: m.order || 1,
+          strategy: m.strategy || 'primary',
+          fields: m.fields || ['*']
+        }))
+        // Load multi-model settings
+        if (latestVersion.extraction_config.combination_strategy) {
+          multiModelSettings.value.combination_strategy = latestVersion.extraction_config.combination_strategy
+        }
+        if (latestVersion.extraction_config.conflict_resolution) {
+          multiModelSettings.value.conflict_resolution = latestVersion.extraction_config.conflict_resolution
+        }
+      }
     }
   } catch (error) {
     console.error('Failed to load document type details:', error)
@@ -759,6 +922,83 @@ async function loadExtractionModels() {
     console.error('Failed to load extraction models:', error)
   } finally {
     isLoadingModels.value = false
+  }
+}
+
+// Multi-Model Management Functions
+function getModelName(modelId: string): string {
+  const model = extractionModels.value.find(m => m.id === modelId)
+  return model ? `${model.name} (${model.version})` : modelId
+}
+
+function getStrategyColor(strategy: string): string {
+  switch (strategy) {
+    case 'primary': return 'success'
+    case 'fallback': return 'warning'
+    case 'parallel': return 'info'
+    default: return 'grey'
+  }
+}
+
+function getCombinationDescription(strategy: string): string {
+  switch (strategy) {
+    case 'sequential': return 'Model B processes Model A output in order'
+    case 'parallel': return 'Models run concurrently, results merged'
+    case 'ensemble': return 'Voting/averaging across all model results'
+    case 'hybrid': return 'Custom combination logic based on field types'
+    default: return ''
+  }
+}
+
+function addOrUpdateModelConfig() {
+  if (!newModelConfig.value.model_id) return
+
+  const modelConfig: ModelConfig = {
+    model_id: newModelConfig.value.model_id,
+    order: newModelConfig.value.order || configuredModels.value.length + 1,
+    strategy: newModelConfig.value.strategy,
+    fields: newModelConfig.value.fields.length > 0 ? newModelConfig.value.fields : ['*']
+  }
+
+  if (editingModelIndex.value !== null) {
+    // Update existing
+    configuredModels.value[editingModelIndex.value] = modelConfig
+    editingModelIndex.value = null
+  } else {
+    // Add new
+    configuredModels.value.push(modelConfig)
+  }
+
+  // Reset form
+  newModelConfig.value = {
+    model_id: '',
+    order: configuredModels.value.length + 1,
+    strategy: 'primary',
+    fields: ['*']
+  }
+}
+
+function editModelConfig(index: number) {
+  const modelConfig = configuredModels.value[index]
+  newModelConfig.value = { ...modelConfig }
+  editingModelIndex.value = index
+}
+
+function removeModelConfig(index: number) {
+  configuredModels.value.splice(index, 1)
+  // Re-order remaining models
+  configuredModels.value.forEach((m, i) => {
+    m.order = i + 1
+  })
+}
+
+function cancelEditModelConfig() {
+  editingModelIndex.value = null
+  newModelConfig.value = {
+    model_id: '',
+    order: configuredModels.value.length + 1,
+    strategy: 'primary',
+    fields: ['*']
   }
 }
 
@@ -783,16 +1023,6 @@ function onFileSelected(file: File | null) {
   classificationResult.value = null
 }
 
-function debugFileState() {
-  console.log('=== FILE STATE DEBUG ===')
-  console.log('sampleFile.value:', sampleFile.value)
-  console.log('uploadedFile.value:', uploadedFile.value)
-  console.log('file computed:', file.value)
-  console.log('isConfigValid:', isConfigValid.value)
-  
-  alert(`File State:\n\nsampleFile: ${sampleFile.value ? `${sampleFile.value.length} file(s)` : 'null'}\nuploadedFile: ${uploadedFile.value ? uploadedFile.value.name : 'null'}\nfile computed: ${file.value ? file.value.name : 'null'}`)
-}
-
 async function classifyDocument() {
   if (!uploadedFile.value) return
 
@@ -810,13 +1040,12 @@ async function classifyDocument() {
 }
 
 async function runTestExtraction() {
-  alert('runTestExtraction called! Check console for details.')
   console.log('=== TEST EXTRACTION START ===')
   console.log('runTestExtraction called')
   console.log('file.value:', file.value)
   console.log('isConfigValid.value:', isConfigValid.value)
   console.log('config:', config.value)
-  console.log('selectedModel:', selectedModel.value)
+  console.log('configuredModels:', configuredModels.value)
   console.log('parsedInputSchema:', parsedInputSchema.value)
   console.log('parsedOutputSchema:', parsedOutputSchema.value)
   
@@ -835,8 +1064,8 @@ async function runTestExtraction() {
   console.log('Setting isTesting to true')
   isTesting.value = true
   testError.value = null
-  currentStep.value = 3
-  console.log('Moved to step 3')
+  currentStep.value = 2
+  console.log('Moved to step 2 (Test & Review)')
 
   try {
     // Update schemas from JSON
@@ -844,22 +1073,18 @@ async function runTestExtraction() {
     config.value.output_schema = parsedOutputSchema.value
     console.log('Updated schemas')
 
-    // Update extraction config with selected model
-    if (selectedModel.value) {
-      config.value.extraction_config = {
-        models: [
-          {
-            model_id: selectedModel.value.id,
-            order: 1,
-            strategy: 'primary',
-            fields: ['*']
-          }
-        ],
-        combination_strategy: 'sequential',
-        conflict_resolution: 'flag_for_review'
-      }
-      console.log('Updated extraction config')
+    // Update extraction config with configured models (multi-model support)
+    config.value.extraction_config = {
+      models: configuredModels.value.map(m => ({
+        model_id: m.model_id,
+        order: m.order,
+        strategy: m.strategy,
+        fields: m.fields
+      })),
+      combination_strategy: multiModelSettings.value.combination_strategy,
+      conflict_resolution: multiModelSettings.value.conflict_resolution
     }
+    console.log('Updated extraction config with multi-model:', config.value.extraction_config)
 
     console.log('About to call testExtraction API...')
     console.log('Final config:', JSON.stringify(config.value, null, 2))
