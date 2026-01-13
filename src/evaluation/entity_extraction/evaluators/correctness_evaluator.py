@@ -1,22 +1,22 @@
 from typing import Any
-from rapidfuzz import fuzz
-from .base_evaluator import BaseEvaluator, EvaluationResult
-from ..utils.text_utils import clean_text, normalize_value
-
+from evaluators.base_evaluator import BaseEvaluator, EvaluationResult
+from utils.text_utils import clean_text, normalize_value
 
 
 class ExtractionCorrectnessEvaluator(BaseEvaluator):
     """
-    Evaluator that computes fuzzy similarity between extracted entities and OCR text from Azure Document Intelligence.
-    
-    Returns the fuzzy token set ratio score (0-1). Extraction is considered correct only if score is 1.0,
-    indicating the extracted value is exactly present in the source text.
+    Evaluates whether an extracted field value is present in the OCR source text.
+
+    Logic:
+    - Tokenize extracted value and source text
+    - Measure token-level containment
+    - Extraction is correct ONLY if all extracted tokens appear in source text
+    - Score reflects token coverage (diagnostic, not decision)
     """
-    
+
     def __init__(self):
-        """Initialize the fuzzy similarity evaluator."""
         pass
-    
+
     def evaluate_field(
         self,
         field_name: str,
@@ -24,67 +24,59 @@ class ExtractionCorrectnessEvaluator(BaseEvaluator):
         source_text: str,
         **kwargs
     ) -> EvaluationResult:
-        """
-        Check if extracted value is present in the OCR source text.
-        
-        Args:
-            field_name: Name of the extracted field
-            extracted_value: The extracted value to evaluate
-         ompute fuzzy similarity between extracted value and OCR source text.
-        
-        Args:
-            field_name: Name of the extracted field
-            extracted_value: The extracted value to evaluate
-            source_text: The OCR text from Azure Document Intelligence
-            **kwargs: Additional parameters (unused)
-            
-        Returns:
-            EvaluationResult with fuzzy similarity score (0-1) and metadata indicating if extraction is correct
-        """
         # Normalize inputs
-        entity_value = normalize_value(extracted_value)
-        cleaned_source = clean_text(source_text)
-        
-        # Handle empty values
-        if not entity_value:
+        normalized_extracted_value = normalize_value(extracted_value).lower().strip()
+        normalized_source_text = clean_text(source_text).lower().strip()
+
+        # Handle empty extracted value
+        if not normalized_extracted_value:
             return EvaluationResult(
                 field_name=field_name,
                 entity_value=extracted_value,
                 score=0.0,
                 metadata={
-                    "fuzzy_score": 0.0,
+                    "token_coverage_ratio": 0.0,
                     "extraction_correct": False,
                     "reason": "Empty extracted value"
                 }
             )
-        
-        if not cleaned_source:
+
+        # Handle empty source text
+        if not normalized_source_text:
             return EvaluationResult(
                 field_name=field_name,
                 entity_value=extracted_value,
                 score=0.0,
                 metadata={
-                    "fuzzy_score": 0.0,
+                    "token_coverage_ratio": 0.0,
                     "extraction_correct": False,
                     "reason": "Empty source text"
                 }
             )
-        
-        # Compute fuzzy similarity using token set ratio
-        # This is robust to word order and partial matches
-        fuzzy_score = fuzz.token_set_ratio(entity_value, cleaned_source) / 100.0
-        
-        # Extraction is correct only if fuzzy score is exactly 1.0
-        extraction_correct = fuzzy_score == 1.0
-        
+
+        # Tokenize extracted value and source text
+        extracted_value_tokens = set(normalized_extracted_value.split())
+        source_text_tokens = set(normalized_source_text.split())
+
+        # Compute token-level coverage
+        if not extracted_value_tokens:
+            token_coverage_ratio = 0.0
+        else:
+            matched_tokens = extracted_value_tokens.intersection(source_text_tokens)
+            token_coverage_ratio = len(matched_tokens) / len(extracted_value_tokens)
+
+        # Strict correctness: all tokens must be present
+        extraction_correct = token_coverage_ratio == 1.0
+
         return EvaluationResult(
             field_name=field_name,
             entity_value=extracted_value,
-            score=fuzzy_score,
+            score=token_coverage_ratio,
             metadata={
-                "fuzzy_score": fuzzy_score,
+                "token_coverage_ratio": token_coverage_ratio,
                 "extraction_correct": extraction_correct,
-                "normalized_entity": entity_value,
-                "cleaned_source_length": len(cleaned_source)
+                "normalized_extracted_value": normalized_extracted_value,
+                "extracted_token_count": len(extracted_value_tokens),
+                "source_token_count": len(source_text_tokens)
             }
         )
