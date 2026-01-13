@@ -65,23 +65,35 @@ class EvaluationService:
         # Initialize correctness evaluator (no dependencies)
         try:
             self.correctness_evaluator = ExtractionCorrectnessEvaluator()
+            logger.info("Correctness evaluator initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize correctness evaluator: {e}")
             raise RuntimeError(f"Failed to initialize correctness evaluator: {e}") from e
         
         # Initialize completeness evaluator only if credentials provided
         self.completeness_evaluator = None
+        logger.info(f"Checking completeness evaluator credentials - endpoint: {bool(azure_endpoint)}, deployment: {bool(deployment_name)}, api_version: {bool(api_version)}, credential: {bool(credential)}")
+        
         if all([azure_endpoint, deployment_name, api_version, credential]):
             try:
+                logger.info(f"Initializing completeness evaluator with endpoint: {azure_endpoint}, deployment: {deployment_name}")
                 self.completeness_evaluator = ExtractionCompletenessEvaluator(
                     azure_endpoint=azure_endpoint,
                     deployment_name=deployment_name,
                     api_version=api_version,
                     credential=credential
                 )
+                logger.info("Completeness evaluator initialized successfully")
             except Exception as e:
                 logger.warning(f"Failed to initialize completeness evaluator: {e}")
                 # Don't raise, just log warning - completeness evaluator is optional
+        else:
+            missing = []
+            if not azure_endpoint: missing.append("azure_endpoint")
+            if not deployment_name: missing.append("deployment_name")
+            if not api_version: missing.append("api_version")
+            if not credential: missing.append("credential")
+            logger.warning(f"Completeness evaluator NOT initialized - missing credentials: {missing}")
     
     def evaluate(
         self,
@@ -196,8 +208,9 @@ class EvaluationService:
             if self.completeness_evaluator is None:
                 warning_msg = "Completeness evaluator not initialized. Azure OpenAI credentials required."
                 results["summary"]["warnings"].append(warning_msg)
-                logger.warning(warning_msg)
+                logger.warning(f"COMPLETENESS SKIPPED for field '{field_name}': {warning_msg}")
             else:
+                logger.info(f"Running completeness evaluation for field '{field_name}'")
                 try:
                     completeness_result = self.completeness_evaluator.evaluate_field(
                         field_name=field_name,
@@ -214,6 +227,7 @@ class EvaluationService:
                     }
                     scores.append(completeness_result.score)
                     results["summary"]["evaluators_run"].append("completeness")
+                    logger.info(f"Completeness evaluation SUCCESS for '{field_name}': score={completeness_result.score}, is_complete={completeness_result.metadata.get('is_complete')}")
                 except Exception as e:
                     error_msg = f"Completeness evaluation failed: {str(e)}"
                     logger.error(error_msg, exc_info=True)
@@ -265,6 +279,7 @@ class EvaluationService:
                 "average_completeness_score": None,
                 "fields_correct": 0,
                 "fields_complete": 0,
+                "fields_not_extracted": 0,
                 "evaluators_run": [],
                 "failed_evaluations": 0
             }
@@ -279,8 +294,44 @@ class EvaluationService:
             field_name = field.get("field_name")
             extracted_value = field.get("value")
             
-            if not field_name or not extracted_value:
-                logger.warning(f"Skipping field with missing field_name or value: {field}")
+            if not field_name:
+                logger.warning(f"Skipping field with missing field_name: {field}")
+                continue
+            
+            # Handle fields with null/empty values - give them a score of 0
+            if not extracted_value or extracted_value.strip() == "":
+                logger.info(f"Field '{field_name}' has no extracted value - scoring as 0")
+                result = {
+                    "field_name": field_name,
+                    "extracted_value": extracted_value,
+                    "evaluations": {
+                        "correctness": {
+                            "score": 0.0,
+                            "fuzzy_score": 0.0,
+                            "extraction_correct": False,
+                            "normalized_entity": None,
+                            "reason": "No value extracted"
+                        },
+                        "completeness": {
+                            "score": 0.0,
+                            "is_relevant": True,
+                            "is_complete": False,
+                            "missing_info": ["Field value not extracted"],
+                            "reason": "No value extracted"
+                        }
+                    },
+                    "summary": {
+                        "overall_score": 0.0,
+                        "evaluators_run": ["correctness", "completeness"],
+                        "warnings": ["Field has no extracted value - scored as 0"],
+                        "errors": []
+                    }
+                }
+                batch_results["results"].append(result)
+                batch_results["aggregate_summary"]["fields_not_extracted"] += 1
+                overall_scores.append(0.0)
+                correctness_scores.append(0.0)
+                completeness_scores.append(0.0)
                 continue
             
             try:

@@ -1,12 +1,17 @@
 """Completeness evaluator for entity extraction using LLM."""
 
 import json
+import logging
+import traceback
 from typing import Any, Dict, Optional
 from azure.identity import DefaultAzureCredential
 from openai import AzureOpenAI
 from pydantic import BaseModel
 from .base_evaluator import BaseEvaluator, EvaluationResult
 from ..utils.text_utils import clean_text, normalize_value
+
+
+logger = logging.getLogger(__name__)
 
 
 class CompletenessAssessment(BaseModel):
@@ -43,17 +48,30 @@ class ExtractionCompletenessEvaluator(BaseEvaluator):
             api_version: Azure OpenAI API version
             credential: Azure credential (defaults to DefaultAzureCredential)
         """
+        logger.info("=" * 60)
+        logger.info("COMPLETENESS EVALUATOR - Initializing")
+        logger.info("=" * 60)
+        logger.info(f"  Azure endpoint: {azure_endpoint}")
+        logger.info(f"  Deployment name: {deployment_name}")
+        logger.info(f"  API version: {api_version}")
+        logger.info(f"  Credential provided: {credential is not None}")
+        
         self.azure_endpoint = azure_endpoint
         self.deployment_name = deployment_name
         self.api_version = api_version
         self.credential = credential or DefaultAzureCredential()
         
         # Initialize Azure OpenAI client
-        self.client = AzureOpenAI(
-            azure_endpoint=self.azure_endpoint,
-            api_version=self.api_version,
-            azure_ad_token_provider=self._get_token_provider()
-        )
+        try:
+            self.client = AzureOpenAI(
+                azure_endpoint=self.azure_endpoint,
+                api_version=self.api_version,
+                azure_ad_token_provider=self._get_token_provider()
+            )
+            logger.info("  ✓ Azure OpenAI client initialized successfully")
+        except Exception as e:
+            logger.error(f"  ✗ Failed to initialize Azure OpenAI client: {e}")
+            raise
     
     def _get_token_provider(self):
         """Create token provider for Azure AD authentication."""
@@ -152,12 +170,20 @@ class ExtractionCompletenessEvaluator(BaseEvaluator):
         Returns:
             EvaluationResult with completeness score (0-1) and detailed metadata
         """
+        logger.info(f"[Completeness] Evaluating field: {field_name}")
+        logger.info(f"[Completeness]   Extracted value: {extracted_value}")
+        logger.info(f"[Completeness]   Source text length: {len(source_text) if source_text else 0}")
+        
         # Normalize inputs
         entity_value = normalize_value(extracted_value)
         cleaned_source = clean_text(source_text)
         
+        logger.info(f"[Completeness]   Normalized value: {entity_value}")
+        logger.info(f"[Completeness]   Cleaned source length: {len(cleaned_source) if cleaned_source else 0}")
+        
         # Handle empty values
         if not entity_value:
+            logger.warning(f"[Completeness]   Empty entity value - returning score 0")
             return EvaluationResult(
                 field_name=field_name,
                 entity_value=extracted_value,
@@ -171,6 +197,7 @@ class ExtractionCompletenessEvaluator(BaseEvaluator):
             )
         
         if not cleaned_source:
+            logger.warning(f"[Completeness]   Empty source text - returning score 0")
             return EvaluationResult(
                 field_name=field_name,
                 entity_value=extracted_value,
@@ -191,6 +218,9 @@ class ExtractionCompletenessEvaluator(BaseEvaluator):
         max_tokens = kwargs.get('max_tokens', 500)
         
         try:
+            logger.info(f"[Completeness]   Calling Azure OpenAI for field '{field_name}'...")
+            logger.info(f"[Completeness]   Model: {self.deployment_name}")
+            
             # Call Azure OpenAI
             response = self.client.chat.completions.create(
                 model=self.deployment_name,
@@ -209,13 +239,18 @@ class ExtractionCompletenessEvaluator(BaseEvaluator):
                 response_format={"type": "json_object"}
             )
             
+            logger.info(f"[Completeness]   ✓ Azure OpenAI call successful")
+            
             # Parse response
             content = response.choices[0].message.content
+            logger.info(f"[Completeness]   Response: {content[:200]}..." if len(content) > 200 else f"[Completeness]   Response: {content}")
+            
             assessment_dict = json.loads(content)
             assessment = CompletenessAssessment(**assessment_dict)
             
             # Calculate score
             score = self._calculate_score(assessment)
+            logger.info(f"[Completeness]   Score: {score}, is_relevant: {assessment.is_relevant}, is_complete: {assessment.is_complete}")
             
             return EvaluationResult(
                 field_name=field_name,
@@ -231,12 +266,22 @@ class ExtractionCompletenessEvaluator(BaseEvaluator):
             )
             
         except Exception as e:
+            error_details = str(e)
+            tb = traceback.format_exc()
+            logger.error(f"COMPLETENESS EVALUATOR ERROR for field '{field_name}':")
+            logger.error(f"  Error type: {type(e).__name__}")
+            logger.error(f"  Error message: {error_details}")
+            logger.error(f"  Extracted value: {extracted_value}")
+            logger.error(f"  Source text length: {len(cleaned_source) if cleaned_source else 0}")
+            logger.error(f"  Traceback: {tb}")
+            
             return EvaluationResult(
                 field_name=field_name,
                 entity_value=extracted_value,
                 score=0.0,
                 metadata={
-                    "error": str(e),
+                    "error": error_details,
+                    "error_type": type(e).__name__,
                     "reason": "Failed to evaluate with LLM",
                     "is_relevant": False,
                     "is_complete": False,

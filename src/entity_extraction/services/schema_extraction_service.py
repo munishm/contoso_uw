@@ -69,16 +69,39 @@ class SchemaExtractionService:
             try:
                 print(f"[SchemaExtractionService.__init__] Attempting to initialize evaluation service...")
                 from azure.identity import DefaultAzureCredential
+                import os
                 config = get_config()
                 credential = DefaultAzureCredential()
-                print(f"[SchemaExtractionService.__init__] Config: endpoint={getattr(config, 'openai_endpoint', None)}, deployment={getattr(config, 'openai_deployment_gpt4_vision', None)}")
+                
+                # Get OpenAI endpoint - prefer EXTRACTION_ prefixed, fallback to AZURE_OPENAI_ENDPOINT
+                openai_endpoint = os.environ.get('EXTRACTION_OPENAI_ENDPOINT')
+                if not openai_endpoint:
+                    openai_endpoint = getattr(config, 'openai_endpoint', None)
+                if not openai_endpoint:
+                    openai_endpoint = os.environ.get('AZURE_OPENAI_ENDPOINT')
+                print(f"[SchemaExtractionService.__init__] OpenAI endpoint: {openai_endpoint}")
+                
+                # Get deployment - prefer EXTRACTION_ prefixed, fallback to AZURE_OPENAI_DEPLOYMENT
+                deployment_name = os.environ.get('EXTRACTION_OPENAI_DEPLOYMENT_GPT4_VISION')
+                if not deployment_name:
+                    deployment_name = getattr(config, 'openai_deployment_gpt4_vision', None)
+                if not deployment_name or deployment_name == "gpt-4-vision":  # Default value means not explicitly set
+                    deployment_name = os.environ.get('AZURE_OPENAI_DEPLOYMENT', deployment_name)
+                print(f"[SchemaExtractionService.__init__] Using deployment: {deployment_name}")
+                
+                # Get API version - prefer EXTRACTION_ prefixed
+                api_version = os.environ.get('EXTRACTION_OPENAI_API_VERSION', '2024-12-01-preview')
+                print(f"[SchemaExtractionService.__init__] API version: {api_version}")
+                
+                print(f"[SchemaExtractionService.__init__] Config: endpoint={openai_endpoint}, deployment={deployment_name}, api_version={api_version}")
                 self.evaluation_service = EvaluationService(
-                    azure_endpoint=getattr(config, 'openai_endpoint', None),
-                    deployment_name=getattr(config, 'openai_deployment_gpt4_vision', None),
-                    api_version="2024-08-01-preview",
+                    azure_endpoint=openai_endpoint,
+                    deployment_name=deployment_name,
+                    api_version=api_version,
                     credential=credential
                 )
                 print(f"[SchemaExtractionService.__init__] Evaluation service created successfully")
+                print(f"[SchemaExtractionService.__init__] Completeness evaluator initialized: {self.evaluation_service.completeness_evaluator is not None}")
                 logger.info("Evaluation service initialized and enabled")
             except Exception as e:
                 print(f"[SchemaExtractionService.__init__] Failed to initialize evaluation service: {e}")

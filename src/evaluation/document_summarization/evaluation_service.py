@@ -121,11 +121,28 @@ class SummaryEvaluationService:
             }
         """
         try:
+            # Log input details
+            logger.info("=" * 80)
+            logger.info("SUMMARIZATION EVALUATION - Starting evaluation")
+            logger.info("=" * 80)
+            logger.info(f"Context: {context or 'Not provided'}")
+            logger.info(f"Summary length: {len(summary)} characters")
+            logger.info(f"Summary preview: {summary[:200]}..." if len(summary) > 200 else f"Summary: {summary}")
+            logger.info(f"Number of entities: {len(entities)}")
+            logger.info("-" * 40)
+            logger.info("ENTITIES TO EVALUATE:")
+            for entity_name, entity_value in entities.items():
+                value_preview = str(entity_value)[:100] + "..." if len(str(entity_value)) > 100 else str(entity_value)
+                logger.info(f"  • {entity_name}: {value_preview}")
+            logger.info("-" * 40)
+            
             # Validate inputs
             if not summary or not isinstance(summary, str):
+                logger.error("Validation failed: Summary must be a non-empty string")
                 raise ValueError("Summary must be a non-empty string")
             
             if not entities or not isinstance(entities, dict):
+                logger.error("Validation failed: Entities must be a non-empty dictionary")
                 raise ValueError("Entities must be a non-empty dictionary")
             
             # Determine which evaluators to run
@@ -133,6 +150,8 @@ class SummaryEvaluationService:
                 evaluators_to_run = list(self.evaluators.keys())
             else:
                 evaluators_to_run = evaluators
+            
+            logger.info(f"Evaluators to run: {evaluators_to_run}")
             
             # Check if we have any evaluators
             if not evaluators_to_run or not self.evaluators:
@@ -149,12 +168,19 @@ class SummaryEvaluationService:
             evaluation_results = {}
             scores = []
             
+            logger.info("=" * 80)
+            logger.info("RUNNING EVALUATORS")
+            logger.info("=" * 80)
+            
             for evaluator_name in evaluators_to_run:
                 if evaluator_name not in self.evaluators:
                     logger.warning(f"Evaluator '{evaluator_name}' not found, skipping")
                     continue
                 
                 evaluator = self.evaluators[evaluator_name]
+                logger.info(f"\n┌{'─' * 78}┐")
+                logger.info(f"│ Running evaluator: {evaluator_name:<58}│")
+                logger.info(f"└{'─' * 78}┘")
                 
                 try:
                     result = evaluator.evaluate(
@@ -170,11 +196,42 @@ class SummaryEvaluationService:
                         "success": result.success
                     }
                     
+                    # Log detailed evaluator results
+                    logger.info(f"  ├─ Score: {result.score:.4f} ({result.score * 100:.1f}%)")
+                    logger.info(f"  ├─ Success: {result.success}")
+                    if result.feedback:
+                        # Log feedback with proper formatting for multi-line
+                        feedback_lines = result.feedback.split('\n')
+                        logger.info(f"  ├─ Feedback:")
+                        for line in feedback_lines[:10]:  # Limit to first 10 lines
+                            logger.info(f"  │    {line}")
+                        if len(feedback_lines) > 10:
+                            logger.info(f"  │    ... ({len(feedback_lines) - 10} more lines)")
+                    
+                    if result.metadata:
+                        logger.info(f"  └─ Metadata:")
+                        for key, value in result.metadata.items():
+                            if isinstance(value, list):
+                                logger.info(f"       • {key}: [{len(value)} items]")
+                                for item in value[:5]:  # Show first 5 items
+                                    logger.info(f"         - {item}")
+                                if len(value) > 5:
+                                    logger.info(f"         ... ({len(value) - 5} more items)")
+                            elif isinstance(value, dict):
+                                logger.info(f"       • {key}: {json.dumps(value, indent=2)[:200]}")
+                            else:
+                                logger.info(f"       • {key}: {value}")
+                    
                     if result.success:
                         scores.append(result.score)
+                        logger.info(f"  ✓ Evaluator completed successfully")
+                    else:
+                        logger.warning(f"  ✗ Evaluator completed but marked as unsuccessful")
                 
                 except Exception as e:
                     logger.error(f"Error running evaluator '{evaluator_name}': {e}")
+                    import traceback
+                    logger.error(f"Traceback: {traceback.format_exc()}")
                     evaluation_results[evaluator_name] = {
                         "score": 0.0,
                         "feedback": None,
@@ -185,6 +242,18 @@ class SummaryEvaluationService:
             
             # Calculate overall score
             overall_score = sum(scores) / len(scores) if scores else 0.0
+            
+            # Log summary of results
+            logger.info("\n" + "=" * 80)
+            logger.info("EVALUATION SUMMARY")
+            logger.info("=" * 80)
+            logger.info(f"Total evaluators run: {len(scores)}/{len(evaluators_to_run)}")
+            logger.info(f"Individual scores:")
+            for eval_name, eval_result in evaluation_results.items():
+                status = "✓" if eval_result.get("success") else "✗"
+                logger.info(f"  {status} {eval_name}: {eval_result['score']:.4f} ({eval_result['score'] * 100:.1f}%)")
+            logger.info(f"\n  ★ OVERALL SCORE: {overall_score:.4f} ({overall_score * 100:.1f}%)")
+            logger.info("=" * 80)
             
             return {
                 "summary": summary,

@@ -1176,7 +1176,11 @@ class SummarizationProcessor(IDocumentProcessor):
         try:
             logger.info(f"    [_evaluate_summary] Starting evaluation for {document_type}")
             logger.info(f"      Summary length: {len(summary)} chars")
+            logger.info(f"      Summary text: {summary}")
             logger.info(f"      Entities count: {len(entities)}")
+            logger.info(f"      Entities details:")
+            for entity_name, entity_value in entities.items():
+                logger.info(f"        - {entity_name}: {entity_value}")
             
             # Import evaluation components
             from src.evaluation.document_summarization import SummaryEvaluationService
@@ -1205,6 +1209,8 @@ class SummarizationProcessor(IDocumentProcessor):
             for key, value in entities.items():
                 entities_str[key] = str(value) if value is not None else ""
             
+            logger.info(f"      Running evaluators...")
+            
             # Run evaluation
             result = service.evaluate(
                 summary=summary,
@@ -1219,6 +1225,16 @@ class SummarizationProcessor(IDocumentProcessor):
                 ecs_score = evaluations.get("entity_coverage", {}).get("score", 0)
                 gs_score = evaluations.get("groundedness", {}).get("score", 0)
                 sef_score = evaluations.get("semantic_fidelity", {}).get("score", 0)
+                
+                # Get feedback from each evaluator
+                ecs_feedback = evaluations.get("entity_coverage", {}).get("feedback", "")
+                gs_feedback = evaluations.get("groundedness", {}).get("feedback", "")
+                sef_feedback = evaluations.get("semantic_fidelity", {}).get("feedback", "")
+                
+                # Get metadata from evaluators for detailed logging
+                ecs_metadata = evaluations.get("entity_coverage", {}).get("metadata", {})
+                gs_metadata = evaluations.get("groundedness", {}).get("metadata", {})
+                sef_metadata = evaluations.get("semantic_fidelity", {}).get("metadata", {})
                 
                 # Weighted combination: ECS 40%, GS 30%, SEF 30%
                 final_score = (
@@ -1235,9 +1251,26 @@ class SummarizationProcessor(IDocumentProcessor):
                 }
                 
                 logger.info(f"    [_evaluate_summary] ✓ Evaluation completed:")
-                logger.info(f"      Entity Coverage: {ecs_score:.3f} (weight: 40%)")
-                logger.info(f"      Groundedness: {gs_score:.3f} (weight: 30%)")
-                logger.info(f"      Semantic Fidelity: {sef_score:.3f} (weight: 30%)")
+                logger.info(f"      ┌─────────────────────────────────────────────────────")
+                logger.info(f"      │ Entity Coverage: {ecs_score:.3f} (weight: 40%)")
+                logger.info(f"      │   Feedback: {ecs_feedback}")
+                if ecs_metadata.get("covered_entities"):
+                    logger.info(f"      │   Covered: {ecs_metadata.get('covered_entities')}")
+                if ecs_metadata.get("missing_entities"):
+                    logger.info(f"      │   Missing: {ecs_metadata.get('missing_entities')}")
+                logger.info(f"      ├─────────────────────────────────────────────────────")
+                logger.info(f"      │ Groundedness: {gs_score:.3f} (weight: 30%)")
+                logger.info(f"      │   Feedback: {gs_feedback}")
+                if gs_metadata.get("entity_scores"):
+                    for entity, score in gs_metadata.get("entity_scores", {}).items():
+                        logger.info(f"      │     {entity}: {score:.3f}")
+                logger.info(f"      ├─────────────────────────────────────────────────────")
+                logger.info(f"      │ Semantic Fidelity: {sef_score:.3f} (weight: 30%)")
+                logger.info(f"      │   Feedback: {sef_feedback}")
+                if sef_metadata.get("entity_similarity_scores"):
+                    for entity, score in sef_metadata.get("entity_similarity_scores", {}).items():
+                        logger.info(f"      │     {entity}: {score:.3f}")
+                logger.info(f"      └─────────────────────────────────────────────────────")
                 logger.info(f"      Final Composite Score: {final_score:.3f}")
             else:
                 logger.warning(f"    [_evaluate_summary] ⚠ Evaluation failed: {result.get('error_message')}")
