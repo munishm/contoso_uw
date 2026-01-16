@@ -2,7 +2,7 @@
   <v-container fluid class="pa-6">
     <v-row>
       <v-col cols="12">
-        <h1 class="text-h4 mb-4">Document Type Onboarding</h1>
+        <h1 class="text-h4 mb-4">Document Type Onboarding + Evaluation (Admin only)</h1>
         <p class="text-subtitle-1 text-medium-emphasis mb-6">
           Configure a new document type or update an existing one with extraction models and schemas
         </p>
@@ -283,39 +283,118 @@
 
                       <v-divider class="my-4" />
 
-                      <!-- Schema Definition -->
-                      <h4 class="text-subtitle-1 mb-3">Schema Definition</h4>
+                      <!-- Schema Definition - Simple Field Editor -->
+                      <h4 class="text-subtitle-1 mb-3">
+                        Schema Fields
+                        <v-chip size="x-small" color="info" class="ml-2">{{ schemaFields.length }} fields</v-chip>
+                      </h4>
 
-                      <v-tabs v-model="schemaTab" class="mb-3" density="compact">
-                        <v-tab value="input">Input Schema</v-tab>
-                        <v-tab value="output">Output Schema</v-tab>
-                      </v-tabs>
+                      <v-alert type="info" density="compact" class="mb-3">
+                        Define the fields to extract. The full JSON schema will be generated automatically.
+                      </v-alert>
 
-                      <v-window v-model="schemaTab">
-                        <v-window-item value="input">
-                          <v-textarea
-                            v-model="inputSchemaJson"
-                            label="Input Schema (JSON)"
-                            variant="outlined"
-                            rows="8"
-                            density="compact"
-                            placeholder='{"field_name": {"type": "string", "description": "..."}}'
-                            class="mb-3 code-editor"
-                          />
-                        </v-window-item>
+                      <!-- Existing Fields List -->
+                      <v-card v-if="schemaFields.length > 0" variant="outlined" class="mb-3">
+                        <v-list density="compact">
+                          <v-list-item
+                            v-for="(field, index) in schemaFields"
+                            :key="index"
+                          >
+                            <template #prepend>
+                              <v-icon :color="getFieldTypeColor(field.type)">{{ getFieldTypeIcon(field.type) }}</v-icon>
+                            </template>
+                            <v-list-item-title>{{ field.name }}</v-list-item-title>
+                            <v-list-item-subtitle>
+                              <v-chip size="x-small" :color="getFieldTypeColor(field.type)" class="mr-1">
+                                {{ field.type }}
+                              </v-chip>
+                              <v-chip v-if="field.required" size="x-small" color="error" class="mr-1">required</v-chip>
+                              <span v-if="field.description" class="text-caption">{{ field.description }}</span>
+                            </v-list-item-subtitle>
+                            <template #append>
+                              <v-btn
+                                icon="mdi-pencil"
+                                size="x-small"
+                                variant="text"
+                                @click="editSchemaField(index)"
+                              />
+                              <v-btn
+                                icon="mdi-delete"
+                                size="x-small"
+                                variant="text"
+                                color="error"
+                                @click="removeSchemaField(index)"
+                              />
+                            </template>
+                          </v-list-item>
+                        </v-list>
+                      </v-card>
 
-                        <v-window-item value="output">
-                          <v-textarea
-                            v-model="outputSchemaJson"
-                            label="Output Schema (JSON)"
-                            variant="outlined"
-                            rows="8"
-                            density="compact"
-                            placeholder='{"field_name": {"type": "object"}}'
-                            class="mb-3 code-editor"
-                          />
-                        </v-window-item>
-                      </v-window>
+                      <!-- Add/Edit Field Form -->
+                      <v-card variant="outlined" class="mb-3 pa-3">
+                        <h5 class="text-subtitle-2 mb-2">
+                          {{ editingFieldIndex !== null ? 'Edit Field' : 'Add Field' }}
+                        </h5>
+                        <v-row dense>
+                          <v-col cols="6">
+                            <v-text-field
+                              v-model="newField.name"
+                              label="Field Name *"
+                              variant="outlined"
+                              density="compact"
+                              placeholder="e.g., customer_name"
+                              :rules="[v => !!v || 'Required', v => /^[a-z][a-z0-9_]*$/.test(v) || 'Use snake_case']"
+                            />
+                          </v-col>
+                          <v-col cols="6">
+                            <v-select
+                              v-model="newField.type"
+                              :items="fieldTypes"
+                              label="Type *"
+                              variant="outlined"
+                              density="compact"
+                            />
+                          </v-col>
+                          <v-col cols="12">
+                            <v-text-field
+                              v-model="newField.description"
+                              label="Description (helps AI understand the field)"
+                              variant="outlined"
+                              density="compact"
+                              placeholder="e.g., Full name of the customer"
+                            />
+                          </v-col>
+                          <v-col cols="6">
+                            <v-checkbox
+                              v-model="newField.required"
+                              label="Required field"
+                              density="compact"
+                              hide-details
+                            />
+                          </v-col>
+                          <v-col cols="6" class="d-flex justify-end align-center">
+                            <v-btn
+                              v-if="editingFieldIndex !== null"
+                              variant="text"
+                              size="small"
+                              class="mr-2"
+                              @click="cancelEditField"
+                            >
+                              Cancel
+                            </v-btn>
+                            <v-btn
+                              color="primary"
+                              variant="tonal"
+                              size="small"
+                              :disabled="!newField.name || !newField.type"
+                              @click="addOrUpdateField"
+                            >
+                              <v-icon start>{{ editingFieldIndex !== null ? 'mdi-check' : 'mdi-plus' }}</v-icon>
+                              {{ editingFieldIndex !== null ? 'Update' : 'Add Field' }}
+                            </v-btn>
+                          </v-col>
+                        </v-row>
+                      </v-card>
 
                       <v-slider
                         v-model="config.confidence_threshold"
@@ -416,15 +495,7 @@
 
                         <!-- Evaluation Metrics -->
                         <v-row v-if="testResult.evaluation" class="mb-4">
-                          <v-col cols="4">
-                            <v-card variant="outlined">
-                              <v-card-text class="text-center">
-                                <div class="text-h4">{{ (testResult.evaluation.average_confidence * 100).toFixed(1) }}%</div>
-                                <div class="text-caption">Avg Confidence</div>
-                              </v-card-text>
-                            </v-card>
-                          </v-col>
-                          <v-col cols="4">
+                          <v-col cols="6">
                             <v-card variant="outlined">
                               <v-card-text class="text-center">
                                 <div class="text-h4">{{ (testResult.evaluation.completeness_score * 100).toFixed(1) }}%</div>
@@ -432,7 +503,7 @@
                               </v-card-text>
                             </v-card>
                           </v-col>
-                          <v-col cols="4">
+                          <v-col cols="6">
                             <v-card variant="outlined">
                               <v-card-text class="text-center">
                                 <div class="text-h4">{{ (testResult.evaluation.correctness_score * 100).toFixed(1) }}%</div>
@@ -579,13 +650,6 @@
                   <v-expansion-panel-title>
                     <div class="d-flex align-center justify-space-between w-100">
                       <span class="font-weight-medium">{{ formatFieldName(field.field_name) }}</span>
-                      <v-chip
-                        size="small"
-                        :color="getConfidenceColor(field.confidence)"
-                        class="mr-2"
-                      >
-                        {{ (field.confidence * 100).toFixed(0) }}%
-                      </v-chip>
                     </div>
                   </v-expansion-panel-title>
                   <v-expansion-panel-text>
@@ -648,9 +712,6 @@
                 </v-card-title>
                 <v-card-text>
                   <div v-if="result.evaluation">
-                    <div class="mb-2">
-                      <strong>Confidence:</strong> {{ (result.evaluation.average_confidence * 100).toFixed(1) }}%
-                    </div>
                     <div class="mb-2">
                       <strong>Completeness:</strong> {{ (result.evaluation.completeness_score * 100).toFixed(1) }}%
                     </div>
@@ -745,6 +806,34 @@ const multiModelSettings = ref({
   conflict_resolution: 'flag_for_review'
 })
 
+// Schema Field Editor
+interface SchemaField {
+  name: string
+  type: string
+  description: string
+  required: boolean
+}
+
+const schemaFields = ref<SchemaField[]>([])
+const editingFieldIndex = ref<number | null>(null)
+const newField = ref<SchemaField>({
+  name: '',
+  type: 'string',
+  description: '',
+  required: false
+})
+
+const fieldTypes = [
+  { title: 'String', value: 'string' },
+  { title: 'Number', value: 'number' },
+  { title: 'Integer', value: 'integer' },
+  { title: 'Boolean', value: 'boolean' },
+  { title: 'Date', value: 'date' },
+  { title: 'Currency', value: 'currency' },
+  { title: 'Array', value: 'array' },
+  { title: 'Object', value: 'object' }
+]
+
 const config = ref<OnboardingTestConfig>({
   document_type_name: '',
   description: '',
@@ -779,19 +868,72 @@ const groundTruthFileObj = computed(() =>
   groundTruthFile.value ? groundTruthFile.value[0] : null
 )
 
+// Map field types to valid JSON Schema types
+const getJsonSchemaType = (fieldType: string): any => {
+  switch (fieldType) {
+    case 'date':
+      return { type: 'string', format: 'date' }
+    case 'currency':
+      return { type: 'number' }
+    case 'string':
+    case 'number':
+    case 'integer':
+    case 'boolean':
+    case 'array':
+    case 'object':
+      return { type: fieldType }
+    default:
+      return { type: 'string' }
+  }
+}
+
+// Build input schema from schema fields
 const parsedInputSchema = computed(() => {
-  try {
-    return JSON.parse(inputSchemaJson.value)
-  } catch {
-    return {}
+  if (schemaFields.value.length === 0) return {}
+  
+  const properties: Record<string, any> = {}
+  const required: string[] = []
+  
+  for (const field of schemaFields.value) {
+    const typeInfo = getJsonSchemaType(field.type)
+    properties[field.name] = {
+      ...typeInfo,
+      description: field.description || `The ${field.name.replace(/_/g, ' ')} field`
+    }
+    if (field.required) {
+      required.push(field.name)
+    }
+  }
+  
+  return {
+    type: 'object',
+    properties,
+    required
   }
 })
 
+// Build output schema from schema fields
 const parsedOutputSchema = computed(() => {
-  try {
-    return JSON.parse(outputSchemaJson.value)
-  } catch {
-    return {}
+  if (schemaFields.value.length === 0) return {}
+  
+  const properties: Record<string, any> = {}
+  
+  for (const field of schemaFields.value) {
+    const valueTypeInfo = getJsonSchemaType(field.type)
+    properties[field.name] = {
+      type: 'object',
+      properties: {
+        value: valueTypeInfo,
+        confidence: { type: 'number' },
+        citations: { type: 'array' },
+        needs_review: { type: 'boolean' }
+      }
+    }
+  }
+  
+  return {
+    type: 'object',
+    properties
   }
 })
 
@@ -799,30 +941,24 @@ const isConfigValid = computed(() => {
   const valid = (
     config.value.document_type_name.trim() !== '' &&
     config.value.version.trim() !== '' &&
-    configuredModels.value.length > 0 &&  // Changed: at least one model configured
-    Object.keys(parsedInputSchema.value).length > 0 &&
-    Object.keys(parsedOutputSchema.value).length > 0 &&
-    uploadedFile.value !== null  // Check if file is uploaded
+    configuredModels.value.length > 0 &&
+    schemaFields.value.length > 0 &&  // Changed: at least one field defined
+    uploadedFile.value !== null
   )
   console.log('isConfigValid check:', {
     name: config.value.document_type_name.trim() !== '',
     version: config.value.version.trim() !== '',
     models: configuredModels.value.length > 0,
-    inputSchema: Object.keys(parsedInputSchema.value).length > 0,
-    outputSchema: Object.keys(parsedOutputSchema.value).length > 0,
+    fields: schemaFields.value.length > 0,
     file: uploadedFile.value !== null,
     result: valid
   })
   return valid
 })
 
-// Available fields from input schema
+// Available fields from schema fields for model assignment
 const availableFields = computed(() => {
-  const schema = parsedInputSchema.value
-  if (schema.properties) {
-    return ['*', ...Object.keys(schema.properties)]
-  }
-  return ['*', ...Object.keys(schema)]
+  return ['*', ...schemaFields.value.map(f => f.name)]
 })
 
 // Methods
@@ -886,8 +1022,9 @@ async function loadDocumentTypeDetails() {
         config.value.version = currentVersion
       }
       
-      inputSchemaJson.value = JSON.stringify(latestVersion.input_schema, null, 2)
-      outputSchemaJson.value = JSON.stringify(latestVersion.output_schema, null, 2)
+      // Load schema fields from existing input schema
+      schemaFields.value = parseSchemaToFields(latestVersion.input_schema)
+      
       config.value.extraction_config = latestVersion.extraction_config
       config.value.citation_level = latestVersion.citation_level
       config.value.confidence_threshold = latestVersion.confidence_threshold
@@ -948,6 +1085,100 @@ function getCombinationDescription(strategy: string): string {
     case 'hybrid': return 'Custom combination logic based on field types'
     default: return ''
   }
+}
+
+// Schema Field Management
+function getFieldTypeIcon(type: string): string {
+  switch (type) {
+    case 'string': return 'mdi-format-text'
+    case 'number': return 'mdi-numeric'
+    case 'integer': return 'mdi-numeric'
+    case 'boolean': return 'mdi-toggle-switch'
+    case 'date': return 'mdi-calendar'
+    case 'currency': return 'mdi-currency-usd'
+    case 'array': return 'mdi-code-brackets'
+    case 'object': return 'mdi-code-braces'
+    default: return 'mdi-help-circle'
+  }
+}
+
+function getFieldTypeColor(type: string): string {
+  switch (type) {
+    case 'string': return 'blue'
+    case 'number': return 'green'
+    case 'integer': return 'green'
+    case 'boolean': return 'purple'
+    case 'date': return 'orange'
+    case 'currency': return 'teal'
+    case 'array': return 'indigo'
+    case 'object': return 'brown'
+    default: return 'grey'
+  }
+}
+
+function addOrUpdateField() {
+  if (!newField.value.name || !newField.value.type) return
+
+  const field: SchemaField = {
+    name: newField.value.name.toLowerCase().replace(/\s+/g, '_'),
+    type: newField.value.type,
+    description: newField.value.description,
+    required: newField.value.required
+  }
+
+  if (editingFieldIndex.value !== null) {
+    schemaFields.value[editingFieldIndex.value] = field
+    editingFieldIndex.value = null
+  } else {
+    schemaFields.value.push(field)
+  }
+
+  // Reset form
+  newField.value = {
+    name: '',
+    type: 'string',
+    description: '',
+    required: false
+  }
+}
+
+function editSchemaField(index: number) {
+  const field = schemaFields.value[index]
+  newField.value = { ...field }
+  editingFieldIndex.value = index
+}
+
+function removeSchemaField(index: number) {
+  schemaFields.value.splice(index, 1)
+}
+
+function cancelEditField() {
+  editingFieldIndex.value = null
+  newField.value = {
+    name: '',
+    type: 'string',
+    description: '',
+    required: false
+  }
+}
+
+// Parse existing schema to fields (for edit mode)
+function parseSchemaToFields(schema: any): SchemaField[] {
+  const fields: SchemaField[] = []
+  const properties = schema?.properties || schema || {}
+  const required = schema?.required || []
+  
+  for (const [name, def] of Object.entries(properties)) {
+    const fieldDef = def as any
+    fields.push({
+      name,
+      type: fieldDef.type || 'string',
+      description: fieldDef.description || '',
+      required: required.includes(name)
+    })
+  }
+  
+  return fields
 }
 
 function addOrUpdateModelConfig() {

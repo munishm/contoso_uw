@@ -190,7 +190,7 @@ class EvaluationService:
                 
                 results["evaluations"]["correctness"] = {
                     "score": correctness_result.score,
-                    "fuzzy_score": correctness_result.metadata["fuzzy_score"],
+                    "fuzzy_score": correctness_result.metadata.get("fuzzy_score", correctness_result.score),
                     "extraction_correct": correctness_result.metadata["extraction_correct"],
                     "normalized_entity": correctness_result.metadata.get("normalized_entity"),
                     "cleaned_source_length": correctness_result.metadata.get("cleaned_source_length")

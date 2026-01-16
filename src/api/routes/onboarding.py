@@ -284,9 +284,9 @@ async def test_extraction(
 
         # Determine recommendation based on evaluation
         if evaluation_result:
-            avg_confidence = evaluation_result.get("average_confidence", 0)
-            completeness_score = evaluation_result.get("completeness_score", 0)
-            correctness_score = evaluation_result.get("correctness_score", 0)
+            avg_confidence = evaluation_result.get("average_confidence") or 0
+            completeness_score = evaluation_result.get("completeness_score") or 0
+            correctness_score = evaluation_result.get("correctness_score") or 0
 
             if avg_confidence >= 0.8 and completeness_score >= 0.8 and correctness_score >= 0.8:
                 recommendation = "finalize"

@@ -14,9 +14,6 @@
               <h1 class="text-h5">{{ document.filename }}</h1>
               <p class="text-body-2 text-grey mb-0">
                 {{ document.classification || 'Unclassified' }}
-                <span v-if="document.confidence_score">
-                  • {{ formatConfidence(document.confidence_score) }} confidence
-                </span>
               </p>
             </div>
             <v-spacer />
@@ -229,26 +226,30 @@
                             <v-chip 
                               v-bind="props"
                               :color="getEvaluationColor(getFieldEvaluation(field.field_name)?.evaluations.correctness?.score)"
-                              size="x-small"
+                              size="small"
                               density="compact"
+                              label
                             >
+                              <v-icon start size="x-small">mdi-check-circle</v-icon>
                               {{ formatPercentage(getFieldEvaluation(field.field_name)?.evaluations.correctness?.score) }}
                             </v-chip>
                           </template>
-                          <span>Correctness</span>
+                          <span>Correctness Score</span>
                         </v-tooltip>
                         <v-tooltip location="left" v-if="getFieldEvaluation(field.field_name)?.evaluations.completeness">
                           <template v-slot:activator="{ props }">
                             <v-chip 
                               v-bind="props"
                               :color="getEvaluationColor(getFieldEvaluation(field.field_name)?.evaluations.completeness?.score)"
-                              size="x-small"
+                              size="small"
                               density="compact"
+                              label
                             >
+                              <v-icon start size="x-small">mdi-format-list-checks</v-icon>
                               {{ formatPercentage(getFieldEvaluation(field.field_name)?.evaluations.completeness?.score) }}
                             </v-chip>
                           </template>
-                          <span>Completeness</span>
+                          <span>Completeness Score</span>
                         </v-tooltip>
                       </div>
                       <div class="d-flex align-center">
