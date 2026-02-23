@@ -1,8 +1,8 @@
-# HSBC POC Requirements
+# Contoso POC Requirements
 
 ## Bucketizing our approach in 2 broad categories
 
-- Showcase capabilities which can help improve the current POC done by HSBC
+- Showcase capabilities which can help improve the current POC done by Contoso
 - Capabilities which help bring Microsoft ISE expertise aligned with our overall AI strategy
 
 ## Additional Considerations
@@ -11,7 +11,7 @@
 - The POC should be enabled with hypervelocity practices
 - We are considering only English for POC showcase
 
-## What are we trying to showcase to HSBC
+## What are we trying to showcase to Contoso
 
 - **Document Selected:** Commercial Banking Application Form
 - **Additional Synthetic Data:** Medical Lab Report, Identity Documents

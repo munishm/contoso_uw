@@ -1,5 +1,5 @@
 """
-FastAPI application for HSBC Underwriting Case Management.
+FastAPI application for Contoso Bank Underwriting Case Management.
 
 This module provides RESTful API endpoints for managing underwriting cases,
 documents, entity extraction results, and document summaries.

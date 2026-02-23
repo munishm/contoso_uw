@@ -367,4 +367,4 @@ All 21 OpenAPI endpoints mapped to tasks:
 - Each user story is independently completable and testable
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
-- All paths are relative to project root `/home/ksharma/microsoft/hsbc/poc/HSBC_IWPB_UW`
+- All paths are relative to project root `/home/ksharma/microsoft/contoso/poc/Contoso_IWPB_UW`

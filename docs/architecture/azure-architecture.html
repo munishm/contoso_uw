@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="author" content="ISE Team" />
+  <meta name="description" content="Azure architecture diagram for the Document Intelligence Platform" />
+  <title>Azure Architecture</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Azure Architecture</h1>
+<p class="author">ISE Team</p>
+</header>
+<h1 id="hnw-insurance-intelligence-platform---azure-architecture">HNW
+Insurance Intelligence Platform - Azure Architecture</h1>
+<h2 id="overview">Overview</h2>
+<p>This document describes the Azure architecture for the Document
+Intelligence Platform, designed for insurance underwriting automation
+with extensibility for other document processing use cases.</p>
+<h2 id="high-level-architecture-diagram">High-Level Architecture
+Diagram</h2>
+<pre class="mermaid"><code>flowchart TB
+    subgraph Users[&quot;Users&quot;]
+        UW[(&quot;👤 Underwriter&quot;)]
+        Admin[(&quot;👤 Admin/Power User&quot;)]
+    end
+
+    subgraph Frontend[&quot;Presentation Layer&quot;]
+        WebApp[&quot;🌐 Vue 3 Web Application&lt;br/&gt;(Azure Static Web App)&quot;]
+    end
+
+    subgraph API[&quot;API Layer&quot;]
+        FastAPI[&quot;⚡ FastAPI Backend&lt;br/&gt;(Azure App Service)&quot;]
+    end
+
+    subgraph Processing[&quot;Document Processing&quot;]
+        direction TB
+        Classification[&quot;📑 Document Classification&quot;]
+        Extraction[&quot;🔍 Entity Extraction&quot;]
+        Summarization[&quot;📝 Summarization&quot;]
+        Evaluation[&quot;✅ AI Evaluation&quot;]
+    end
+
+    subgraph AIServices[&quot;Azure AI Services&quot;]
+        AOAI[&quot;🤖 Azure OpenAI&lt;br/&gt;GPT-4o / GPT-4 Vision&quot;]
+        ACU[&quot;📄 Azure Content&lt;br/&gt;Understanding&quot;]
+        DocIntel[&quot;📋 Azure Document&lt;br/&gt;Intelligence&quot;]
+    end
+
+    subgraph Storage[&quot;Data Layer&quot;]
+        CosmosDB[(&quot;🗄️ Azure Cosmos DB&quot;)]
+        BlobStorage[(&quot;📦 Azure Blob Storage&quot;)]
+    end
+
+    subgraph Messaging[&quot;Async Processing&quot;]
+        ServiceBus[&quot;📨 Azure Service Bus&quot;]
+    end
+
+    subgraph Security[&quot;Security &amp; Identity&quot;]
+        EntraID[&quot;🔐 Microsoft Entra ID&quot;]
+        ManagedID[&quot;🔑 Managed Identity&quot;]
+    end
+
+    Users --&gt; WebApp
+    WebApp --&gt; FastAPI
+    FastAPI --&gt; Processing
+    Processing --&gt; AIServices
+    Processing --&gt; Storage
+    FastAPI --&gt; Messaging
+    Messaging --&gt; Processing
+    
+    EntraID --&gt; WebApp
+    EntraID --&gt; FastAPI
+    ManagedID --&gt; AIServices
+    ManagedID --&gt; Storage</code></pre>
+<h2 id="component-architecture">Component Architecture</h2>
+<pre class="mermaid"><code>flowchart LR
+    subgraph Input[&quot;Document Input&quot;]
+        PDF[&quot;📄 PDF&quot;]
+        Image[&quot;🖼️ Image&quot;]
+        Scan[&quot;📠 Scanned Doc&quot;]
+    end
+
+    subgraph Pipeline[&quot;Processing Pipeline&quot;]
+        direction TB
+        P1[&quot;1️⃣ Ingest &amp; Store&quot;]
+        P2[&quot;2️⃣ Classify Document&quot;]
+        P3[&quot;3️⃣ Extract Entities&quot;]
+        P4[&quot;4️⃣ Evaluate Quality&quot;]
+        P5[&quot;5️⃣ Generate Summary&quot;]
+        P1 --&gt; P2 --&gt; P3 --&gt; P4 --&gt; P5
+    end
+
+    subgraph Output[&quot;Results&quot;]
+        Entities[&quot;📊 Structured Data&quot;]
+        Scores[&quot;📈 Quality Scores&quot;]
+        Summary[&quot;📝 Summary&quot;]
+    end
+
+    Input --&gt; Pipeline --&gt; Output</code></pre>
+<h2 id="azure-services-used">Azure Services Used</h2>
+<table>
+<colgroup>
+<col style="width: 47%" />
+<col style="width: 52%" />
+</colgroup>
+<thead>
+<tr>
+<th>Service</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Azure App Service</strong></td>
+<td>Host FastAPI backend</td>
+</tr>
+<tr>
+<td><strong>Azure Static Web Apps</strong></td>
+<td>Host Vue 3 frontend</td>
+</tr>
+<tr>
+<td><strong>Azure Cosmos DB</strong></td>
+<td>Store cases, documents, entities, schemas</td>
+</tr>
+<tr>
+<td><strong>Azure Blob Storage</strong></td>
+<td>Store raw documents and processed results</td>
+</tr>
+<tr>
+<td><strong>Azure OpenAI Service</strong></td>
+<td>GPT-4.1 for extraction</td>
+</tr>
+<tr>
+<td><strong>Azure Content Understanding</strong></td>
+<td>Document classification</td>
+</tr>
+<tr>
+<td><strong>Azure Document Intelligence</strong></td>
+<td>OCR, layout extraction, and citations</td>
+</tr>
+<tr>
+<td><strong>Azure Service Bus</strong></td>
+<td>Async message processing</td>
+</tr>
+<tr>
+<td><strong>Microsoft Entra ID</strong></td>
+<td>Authentication and authorization</td>
+</tr>
+<tr>
+<td><strong>Azure Key Vault</strong></td>
+<td>Secrets management</td>
+</tr>
+<tr>
+<td><strong>Azure Monitor</strong></td>
+<td>Logging and observability</td>
+</tr>
+</tbody>
+</table>
+<h2 id="data-flow">Data Flow</h2>
+<pre class="mermaid"><code>sequenceDiagram
+    participant User
+    participant WebApp as Vue Frontend
+    participant API as FastAPI
+    participant Blob as Blob Storage
+    participant ACU as Content Understanding
+    participant AOAI as Azure OpenAI (GPT-4.1)
+    participant DocIntel as Azure Document Intelligence
+    participant Cosmos as Cosmos DB
+
+    User-&gt;&gt;WebApp: Upload Document
+    WebApp-&gt;&gt;API: POST /documents
+    API-&gt;&gt;Blob: Store Raw Document
+    API-&gt;&gt;ACU: Classify Document
+    ACU--&gt;&gt;API: Document Type + Confidence
+    API-&gt;&gt;AOAI: Extract Entities (GPT-4.1)
+    AOAI--&gt;&gt;API: Extracted Fields
+    API-&gt;&gt;DocIntel: Get Citations
+    DocIntel--&gt;&gt;API: Document Citations
+    API-&gt;&gt;AOAI: Evaluate Extraction
+    AOAI--&gt;&gt;API: Correctness + Completeness Scores
+    API-&gt;&gt;AOAI: Generate Summary
+    AOAI--&gt;&gt;API: Document Summary
+    API-&gt;&gt;Cosmos: Store Results
+    API--&gt;&gt;WebApp: Processing Complete
+    WebApp--&gt;&gt;User: Display Results</code></pre>
+<h2 id="cosmos-db-collections">Cosmos DB Collections</h2>
+<pre class="mermaid"><code>erDiagram
+    CASES ||--o{ DOCUMENTS : contains
+    DOCUMENTS ||--o{ ENTITIES : has
+    DOCUMENTS ||--o| SUMMARIES : has
+    EXTRACTION_SCHEMAS ||--o{ EXTRACTION_MODELS : uses
+    
+    CASES {
+        string case_id PK
+        string case_number
+        string status
+        datetime created_at
+    }
+    
+    DOCUMENTS {
+        string document_id PK
+        string case_id FK
+        string filename
+        string classification
+        string processing_status
+        object extraction
+    }
+    
+    ENTITIES {
+        string entity_id PK
+        string document_id FK
+        string entity_type
+        string value
+        float confidence
+    }
+    
+    SUMMARIES {
+        string summary_id PK
+        string document_id FK
+        string content
+        object citations
+    }
+    
+    EXTRACTION_SCHEMAS {
+        string schema_id PK
+        string document_type
+        object fields
+        string version
+    }
+    
+    EXTRACTION_MODELS {
+        string model_id PK
+        string name
+        string adapter_type
+        object config
+    }</code></pre>
+<h2 id="security-architecture">Security Architecture</h2>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Security Control</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Identity</strong></td>
+<td>Microsoft Entra ID (OAuth 2.0 / OIDC)</td>
+</tr>
+<tr>
+<td><strong>API Access</strong></td>
+<td>Managed Identity (no stored secrets)</td>
+</tr>
+<tr>
+<td><strong>Network</strong></td>
+<td>Private endpoints, NSGs, WAF</td>
+</tr>
+<tr>
+<td><strong>Data at Rest</strong></td>
+<td>Azure-managed encryption (AES-256)</td>
+</tr>
+<tr>
+<td><strong>Data in Transit</strong></td>
+<td>TLS 1.3</td>
+</tr>
+<tr>
+<td><strong>Secrets</strong></td>
+<td>Azure Key Vault</td>
+</tr>
+<tr>
+<td><strong>Audit</strong></td>
+<td>Azure Monitor, Activity Logs</td>
+</tr>
+</tbody>
+</table>
+<h2 id="monitoring-observability">Monitoring &amp; Observability</h2>
+<pre class="mermaid"><code>flowchart TB
+    subgraph Apps[&quot;Applications&quot;]
+        API[&quot;FastAPI&quot;]
+        Web[&quot;Vue App&quot;]
+    end
+
+    subgraph Monitoring[&quot;Azure Monitor&quot;]
+        AppInsights[&quot;📊 Application Insights&quot;]
+        LogAnalytics[&quot;📋 Log Analytics&quot;]
+        Alerts[&quot;🔔 Alerts&quot;]
+        Dashboards[&quot;📈 Dashboards&quot;]
+    end
+
+    Apps --&gt; AppInsights
+    AppInsights --&gt; LogAnalytics
+    LogAnalytics --&gt; Alerts
+    LogAnalytics --&gt; Dashboards</code></pre>
+<hr />
+<p><em>Architecture Version: 1.0</em><br />
+<em>Last Updated: January 2026</em></p>
+</body>
+</html>

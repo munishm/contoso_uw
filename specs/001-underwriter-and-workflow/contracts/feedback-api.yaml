@@ -7,7 +7,7 @@ info:
 servers:
   - url: http://localhost:8000/api
     description: Local development server
-  - url: https://api-dev.hsbc-underwriting.internal/api
+  - url: https://api-dev.contoso-underwriting.internal/api
     description: Development environment
 
 paths:

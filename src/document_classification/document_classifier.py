@@ -75,7 +75,7 @@ class DirectDocumentClassifier:
         # Create classifier schema
         classifier_template = {
             "baseAnalyzerId": "prebuilt-document",
-            "description": f"HSBC Document Classifier with segmentation - {self._classifier_id}",
+            "description": f"Contoso Bank Document Classifier with segmentation - {self._classifier_id}",
             "config": {
                 "returnDetails": True,
                 "estimateFieldSourceAndConfidence": True,
@@ -87,7 +87,7 @@ class DirectDocumentClassifier:
             },
             "models": {"completion": "gpt-4.1"},
             "tags": {
-                "created_by": "hsbc_document_classification",
+                "created_by": "contoso_document_classification",
                 "purpose": "insurance_underwriting"
             }
         }

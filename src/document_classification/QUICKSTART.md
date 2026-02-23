@@ -19,7 +19,7 @@ Create `.env` file:
 # Azure Content Understanding
 CU_ENDPOINT=https://your-resource.cognitiveservices.azure.com
 AZURE_TENANT_ID=your-tenant-id
-CU_CLASSIFIER_ID=hsbc_insurance_classifier_v3
+CU_CLASSIFIER_ID=contoso_insurance_classifier_v3
 ```
 
 ### 3. Authenticate with Azure

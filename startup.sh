@@ -3,7 +3,7 @@
 # Azure App Service Startup Script - DEBUG VERSION
 
 echo "=========================================="
-echo "=== DEBUG: HSBC IWPB UW API Startup ==="
+echo "=== DEBUG: Contoso IWPB UW API Startup ==="
 echo "=========================================="
 
 echo ""

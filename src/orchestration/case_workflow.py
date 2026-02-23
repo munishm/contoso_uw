@@ -1541,7 +1541,7 @@ DEFAULT_CASE_WORKFLOW_CONFIG = {
         }
     ],
     "metadata": {
-        "created_by": "hsbc_case_workflow",
+        "created_by": "contoso_case_workflow",
         "purpose": "insurance_underwriting",
         "notes": "DB operations handled by case_service.py for proper async context. Summarization generates natural language summaries from extracted entities."
     }

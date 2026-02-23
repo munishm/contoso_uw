@@ -31,7 +31,7 @@ Confidence: Draft – requires stakeholder validation.
 - [Transcript2] Josh to continue the discussion on POC prompts and extractions in the next meeting before moving to UI discussions.
 - [Transcript3] Josh to share the Excel file containing the list of documents with Lukasz's team.
 - [Transcript3] Josh and Lukasz to schedule the next meeting for Thursday of the following week.
-- [Transcript3] Microsoft team to explore solutions for signature extraction in Azure without requiring HSBC to provide training data.
+- [Transcript3] Microsoft team to explore solutions for signature extraction in Azure without requiring Contoso to provide training data.
 - [Transcript3] Josh's team to test the Python layout approach suggested by Vikesh for handling text written across multiple columns/lines.
 - [Transcript3] Tanveer to get statistics from underwriters on how frequently the issue of text written across lines/columns occurs in documents.
 - [Transcript3] Esra and Tanveer to consider scheduling a separate discussion about redesigning the overall workflow for underwriting.
@@ -40,7 +40,7 @@ Confidence: Draft – requires stakeholder validation.
 - [Transcript3] The team discussed a POC for document processing using AI models, focusing on extracting information from underwriting documents. Josh explained they tested 6-10 document types using generic models without custom training, processing items like medical reports and application forms. Joe was tasked with presenting sample results to demonstrate the system's capabilities and challenges, particularly around signature verification where they currently use Tesseract due to its flexibility. The team also discussed the need for further testing with Hong Kong data, which cannot be sent to US servers, and the comparison between models with different context windows.
 - [Transcript4] Josh to share the Excel file containing the list of documents with Lukasz's team.
 - [Transcript4] Josh and Lukasz to schedule the next meeting for Thursday of the following week.
-- [Transcript4] Microsoft team to explore solutions for signature extraction in Azure without requiring HSBC to provide training data.
+- [Transcript4] Microsoft team to explore solutions for signature extraction in Azure without requiring Contoso to provide training data.
 - [Transcript4] Josh's team to test the Python layout approach suggested by Vikesh for handling text written across multiple columns/lines.
 - [Transcript4] Tanveer to get statistics from underwriters on how frequently the issue of text written across lines/columns occurs in documents.
 - [Transcript4] Esra and Tanveer to consider scheduling a separate discussion about redesigning the overall workflow for underwriting.

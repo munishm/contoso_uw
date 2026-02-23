@@ -1,6 +1,6 @@
-# HSBC Underwriter UI - Frontend
+# Contoso Bank Underwriter UI - Frontend
 
-Vue.js application for the HSBC Underwriting POC that enables underwriters to upload insurance application documents and review AI-generated processing results.
+Vue.js application for the Contoso Bank Underwriting POC that enables underwriters to upload insurance application documents and review AI-generated processing results.
 
 ## Tech Stack
 
@@ -150,7 +150,7 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 ### Environment Variables
 
 - `VITE_API_BASE_URL`: Backend API base URL (default: `http://localhost:8000/api`)
-- `VITE_APP_TITLE`: Application title (default: `HSBC Underwriting POC`)
+- `VITE_APP_TITLE`: Application title (default: `Contoso Underwriting POC`)
 
 ### Vite Proxy
 
@@ -234,4 +234,4 @@ npm run type-check
 
 ## License
 
-Internal HSBC project - All rights reserved
+Internal Contoso Bank project - All rights reserved

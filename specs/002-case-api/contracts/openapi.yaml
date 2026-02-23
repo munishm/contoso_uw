@@ -7,14 +7,14 @@ info:
     (classification, entity extraction, summarization), and retrieve analysis results.
   version: 1.0.0
   contact:
-    name: HSBC Underwriting Platform Team
+    name: Contoso Underwriting Platform Team
   license:
     name: Proprietary
 
 servers:
-  - url: https://api.underwriting.hsbc.com/v1
+  - url: https://api.underwriting.contoso.com/v1
     description: Production server
-  - url: https://api.underwriting-dev.hsbc.com/v1
+  - url: https://api.underwriting-dev.contoso.com/v1
     description: Development server
 
 tags:

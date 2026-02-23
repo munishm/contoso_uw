@@ -1,7 +1,7 @@
 [project]
-name = "hsbc-document-summarization"
+name = "contoso-document-summarization"
 version = "0.1.0"
-description = "Document summarization component for HSBC underwriting automation"
+description = "Document summarization component for Contoso Bank underwriting automation"
 requires-python = ">=3.11"
 dependencies = [
     "openai>=1.0.0",

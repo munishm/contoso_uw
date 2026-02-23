@@ -25,14 +25,14 @@ within the file for "TODO".
 ====================================================================================-->
 
 
-# HSBC Insurance Underwriting Automation Platform
+# Contoso Bank Insurance Underwriting Automation Platform
 
 A monorepo containing pluggable components for automating insurance underwriting workflows using Azure AI services.
 
 ## 🏗️ Directory Structure
 
 ```
-HSBC_IWPB_UW/
+CONTOSO_IWPB_UW/
 ├── src/                          # All component source code
 │   ├── interfaces/              # Component interaction contracts (Python Protocols)
 │   ├── shared/                  # Shared utilities across components
@@ -110,7 +110,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Clone and enter repository
 git clone <repository-url>
-cd HSBC_IWPB_UW
+cd CONTOSO_IWPB_UW
 
 # Install dependencies
 uv sync
@@ -186,7 +186,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 
 ## 📄 License
 
-Copyright © 2025 HSBC. All rights reserved.
+Copyright © 2025 Contoso. All rights reserved.
 
 ## 📞 Support
 

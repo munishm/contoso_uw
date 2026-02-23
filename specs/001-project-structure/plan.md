@@ -7,7 +7,7 @@
 
 ## Summary
 
-This feature establishes a monorepo directory structure for the HSBC Insurance Underwriting Automation Platform that supports pluggable, independently deployable components with interchangeable implementations. The structure uses snake_case naming conventions, separates source code (src/), tests (test/unit/, test/e2e/), documentation (docs/), and per-component dependency management. The architecture enables component reusability across different use cases while maintaining clear separation of concerns and supporting environment-specific configurations through separate .env files.
+This feature establishes a monorepo directory structure for the Contoso Insurance Underwriting Automation Platform that supports pluggable, independently deployable components with interchangeable implementations. The structure uses snake_case naming conventions, separates source code (src/), tests (test/unit/, test/e2e/), documentation (docs/), and per-component dependency management. The architecture enables component reusability across different use cases while maintaining clear separation of concerns and supporting environment-specific configurations through separate .env files.
 
 ## Technical Context
 
@@ -23,7 +23,7 @@ This feature establishes a monorepo directory structure for the HSBC Insurance U
 - MUST support per-component dependencies
 - MUST enable plug-and-play component architecture
 - MUST comply with Azure-native architecture (constitution Principle 9)
-- MUST support HSBC compliance and audit requirements (constitution Principle 3)
+- MUST support Contoso compliance and audit requirements (constitution Principle 3)
 **Scale/Scope**: 
 - Monorepo supporting 10-20 components initially
 - POC phase: 2-3 core components (document classification, entity extraction, summarization)

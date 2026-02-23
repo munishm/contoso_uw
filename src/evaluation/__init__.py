@@ -1,1 +1,1 @@
-"""Evaluation module for HSBC IWPB Underwriting system."""
+"""Evaluation module for Contoso IWPB Underwriting system."""

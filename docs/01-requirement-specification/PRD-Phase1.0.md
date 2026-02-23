@@ -4,11 +4,11 @@
 
 The current underwriting process is manual, time-consuming, and susceptible to errors. Underwriters must review a substantial volume of documents and medical reports prior to delivering an assessment. Typically, they handle 40-50 different types of documents, including both financial and medical records, some of which may span hundreds of pages. Many of these documents also feature significant amounts of handwritten content. Underwriters are required to thoroughly review, analyze, extract relevant information from, and ultimately provide a concise and comprehensive summary (memo) of these documents. On average it takes about 3-4 hours per case to go through this process.
 
-HSBC wants to leverage AI to standardize and automate this process.
+Contoso wants to leverage AI to standardize and automate this process.
 
 The current scope is limited to Insurance Underwriting.
 
-## Overall goal of the HSBC UW Engagement is entailed below:
+## Overall goal of the Contoso UW Engagement is entailed below:
 
 Reduction in manual underwriting processing time < 3 hours per case
 

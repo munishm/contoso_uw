@@ -31,20 +31,20 @@ Follow-up TODOs:
 Generated: 2025-12-11
 -->
 
-# HSBC Insurance Underwriting Automation Project Constitution
+# Contoso Bank Insurance Underwriting Automation Project Constitution
 
 **Version:** 1.1.0  
 **Ratification Date:** 2025-12-11  
 **Last Amended:** 2025-12-11  
 **Status:** Active  
-**Scope:** HSBC HNW Insurance Underwriting Process Automation (POC Phase)
+**Scope:** Contoso HNW Insurance Underwriting Process Automation (POC Phase)
 
 ---
 
 ## Project Identity & Mission
 
 ### Project Name
-HSBC High Net Worth (HNW) Insurance Underwriting Process Automation Platform
+Contoso High Net Worth (HNW) Insurance Underwriting Process Automation Platform
 
 ### Mission Statement
 Validate the technical and business viability of AI-powered document processing for insurance underwriting through a focused proof-of-concept, demonstrating accurate classification, extraction, and summarization on 2 English application forms, thereby establishing the foundation for full-scale automation.
@@ -82,7 +82,7 @@ These principles are **NON-NEGOTIABLE** and MUST guide all decisions, implementa
 ### Principle 1: Compliance & Regulatory Adherence First
 
 **Statement:**  
-All system capabilities, data handling, and AI outputs MUST comply with applicable insurance regulations, data privacy laws (GDPR, CCPA, HIPAA where applicable), and HSBC internal policies before any feature is deployed to production.
+All system capabilities, data handling, and AI outputs MUST comply with applicable insurance regulations, data privacy laws (GDPR, CCPA, HIPAA where applicable), and Contoso internal policies before any feature is deployed to production.
 
 **Rationale:**  
 Processing highly sensitive financial and medical data for insurance underwriting carries severe regulatory and reputational risk. Non-compliance can result in fines, legal action, license revocation, and loss of customer trust. Regulatory requirements are table stakes—not optional enhancements.
@@ -262,7 +262,7 @@ AI models degrade over time as data distributions shift (model drift). Without m
 All architecture, data models, extraction patterns, and workflows MUST be designed for reusability beyond insurance underwriting. The platform MUST be extensible to credit underwriting and other document-intensive processes without major re-architecture.
 
 **Rationale:**  
-HSBC's investment in this platform should yield returns across multiple business domains. Siloed, domain-specific implementations create technical debt and limit ROI. Reusable patterns enable faster expansion, consistent quality, and shared learnings across underwriting domains.
+Contoso's investment in this platform should yield returns across multiple business domains. Siloed, domain-specific implementations create technical debt and limit ROI. Reusable patterns enable faster expansion, consistent quality, and shared learnings across underwriting domains.
 
 **Implementation Requirements:**
 - Extraction patterns MUST be configurable via metadata/rules (not hardcoded)
@@ -282,10 +282,10 @@ HSBC's investment in this platform should yield returns across multiple business
 ### Principle 9: Azure-Native Architecture (POC Constraint)
 
 **Statement:**  
-The POC MUST use Azure-native services exclusively for all AI, storage, and compute capabilities. Multi-cloud or third-party services are out of scope for POC. This constraint ensures rapid provisioning, HSBC internal compliance, and simplified security review.
+The POC MUST use Azure-native services exclusively for all AI, storage, and compute capabilities. Multi-cloud or third-party services are out of scope for POC. This constraint ensures rapid provisioning, Contoso internal compliance, and simplified security review.
 
 **Rationale:**  
-Using HSBC's internal Azure subscription accelerates POC execution by leveraging pre-approved services, existing security controls, and enterprise agreements. Evaluating multiple cloud providers during POC adds unnecessary complexity and delays. Azure-native services provide sufficient capabilities to validate the approach.
+Using Contoso's internal Azure subscription accelerates POC execution by leveraging pre-approved services, existing security controls, and enterprise agreements. Evaluating multiple cloud providers during POC adds unnecessary complexity and delays. Azure-native services provide sufficient capabilities to validate the approach.
 
 **Implementation Requirements (POC Phase):**
 - **OCR**: Azure AI Document Intelligence (formerly Form Recognizer) MUST be used exclusively
@@ -294,7 +294,7 @@ Using HSBC's internal Azure subscription accelerates POC execution by leveraging
 - **Storage**: Azure Blob Storage MUST be used for documents
 - **Database**: Azure SQL Database or Azure Cosmos DB MUST be used for structured data
 - **Model Registry**: Azure ML Model Registry MUST be used for model versioning
-- **Infrastructure**: Internal HSBC Azure subscription MUST be used
+- **Infrastructure**: Internal Contoso Azure subscription MUST be used
 - **Monitoring**: Azure Monitor and Application Insights MUST be used
 
 **Implementation Requirements (Production - Deferred):**
@@ -302,7 +302,7 @@ Using HSBC's internal Azure subscription accelerates POC execution by leveraging
 - Abstraction layers SHOULD be designed to support potential multi-cloud expansion
 
 **Validation:**
-- All services provisioned within HSBC Azure subscription
+- All services provisioned within Contoso Azure subscription
 - Azure AI Document Intelligence access secured
 - Azure OpenAI Service quota approved and provisioned
 - Azure security baseline compliance validated
@@ -374,7 +374,7 @@ Requires sign-off from: Technical Lead, Security Lead, Compliance Officer, Produ
 ### Compliance Review Process
 
 **Pre-POC Review:**  
-Basic security review and HSBC development environment compliance MUST be completed before POC start. Use of anonymized/synthetic data preferred to minimize compliance requirements.
+Basic security review and Contoso development environment compliance MUST be completed before POC start. Use of anonymized/synthetic data preferred to minimize compliance requirements.
 
 **POC Phase Reviews:**  
 - **Weekly:** Progress review and blocker resolution (Product Owner, Technical Lead)
@@ -464,7 +464,7 @@ The constitution SHOULD be amended when:
 - [HNW Insurance Underwriting POC PRD](../docs/prds/hnw-underwriting-poc.md)
 - [Business Requirements Document](../docs/01-requirement-specification/PRD-Phase1.0.md)
 - [POC Scope Presentation](../docs/marp.md)
-- [GitHub Repository](https://github.com/commercial-software-engineering/HSBC_IWPB_UW)
+- [GitHub Repository](https://github.com/commercial-software-engineering/Contoso_IWPB_UW)
 
 ---
 

@@ -21,7 +21,7 @@ class AzureContentUnderstandingClient:
         api_version: str,
         subscription_key: Optional[str] = None,
         token_provider: Optional[Callable] = None,
-        x_ms_useragent: str = "hsbc-document-classification"
+        x_ms_useragent: str = "contoso-document-classification"
     ):
         """
         Initialize the Azure Content Understanding client.

@@ -65,7 +65,7 @@ export default createVuetify({
     themes: {
       light: {
         colors: {
-          primary: '#1976D2',  // HSBC red alternative for POC
+          primary: '#1976D2',  // Contoso red alternative for POC
           secondary: '#424242',
           accent: '#82B1FF',
           error: '#FF5252',

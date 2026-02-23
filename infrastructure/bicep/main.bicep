@@ -1,5 +1,5 @@
 // ============================================================================
-// HSBC IWPB Underwriting - Azure Infrastructure
+// Contoso Bank IWPB Underwriting - Azure Infrastructure
 // ============================================================================
 // Resources:
 //   - Azure Cosmos DB (NoSQL) - Case, Document, Entity, Summary storage
@@ -19,7 +19,7 @@ param environment string = 'dev'
 param location string = resourceGroup().location
 
 @description('Base name for all resources')
-param baseName string = 'hsbc-iwpb-uw'
+param baseName string = 'contoso-iwpb-uw'
 
 @description('App Service Plan SKU')
 @allowed(['B1', 'B2', 'B3', 'S1', 'S2', 'S3', 'P1v3', 'P2v3', 'P3v3'])
@@ -69,7 +69,7 @@ var serviceBusQueueName = 'document-processing'
 
 var tags = {
   Environment: environment
-  Project: 'HSBC-IWPB-UW'
+  Project: 'CONTOSO-IWPB-UW'
   ManagedBy: 'Bicep'
   Application: 'Underwriting-API'
 }

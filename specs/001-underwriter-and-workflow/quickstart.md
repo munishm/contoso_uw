@@ -47,7 +47,7 @@ See [contracts/README.md](contracts/README.md) for full API specification.
 
 ```bash
 # Navigate to repository root
-cd /Users/munishmalhotra/Documents/code/HSBC_IWPB_UW
+cd /Users/munishmalhotra/Documents/code/Contoso_IWPB_UW
 
 # Create frontend directory
 mkdir frontend
@@ -178,13 +178,13 @@ export default defineConfig({
 **`.env.development`** (local development):
 ```env
 VITE_API_BASE_URL=http://localhost:8000/api
-VITE_APP_TITLE=HSBC Underwriting POC
+VITE_APP_TITLE=Contoso Underwriting POC
 ```
 
 **`.env.production`** (production build):
 ```env
-VITE_API_BASE_URL=https://api.hsbc-underwriting.internal/api
-VITE_APP_TITLE=HSBC Underwriting
+VITE_API_BASE_URL=https://api.contoso-underwriting.internal/api
+VITE_APP_TITLE=Contoso Underwriting
 ```
 
 **`.env.local`** (local overrides - gitignored):

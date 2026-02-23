@@ -7,7 +7,7 @@ version: "1.0.0"
 description: "Case processing workflow: classification → file upload → DB update → extraction"
 
 metadata:
-  created_by: hsbc_case_workflow
+  created_by: contoso_case_workflow
   purpose: insurance_underwriting
   environment: production
 

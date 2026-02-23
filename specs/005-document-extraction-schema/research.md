@@ -97,7 +97,7 @@ ExtractionModelAdapter
 | Monitoring | Azure Application Insights | Extraction performance metrics |
 
 **Rationale**:
-- All services pre-approved in HSBC Azure subscription
+- All services pre-approved in Contoso Azure subscription
 - Aligns with existing project infrastructure (see `infrastructure/bicep/`)
 
 ### 6. Integration with Existing Codebase

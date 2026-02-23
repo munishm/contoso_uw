@@ -1,4 +1,4 @@
-# Contributing to HSBC Insurance Underwriting Automation Platform
+# Contributing to Contoso Bank Insurance Underwriting Automation Platform
 
 Thank you for your interest in contributing to this project! This document provides guidelines and instructions for contributing.
 
@@ -15,7 +15,7 @@ Thank you for your interest in contributing to this project! This document provi
 1. Clone the repository:
    ```bash
    git clone <repository-url>
-   cd HSBC_IWPB_UW
+   cd Contoso_IWPB_UW
    ```
 
 2. Install UV (if not already installed):
@@ -251,7 +251,7 @@ Document significant architectural decisions in `docs/adr/`:
 3. Create component `pyproject.toml`:
    ```toml
    [project]
-   name = "hsbc-new-component"
+   name = "contoso-new-component"
    version = "0.1.0"
    requires-python = ">=3.11"
    dependencies = [
@@ -282,4 +282,4 @@ Document significant architectural decisions in `docs/adr/`:
 
 ## License
 
-Copyright © 2025 HSBC. All rights reserved.
+Copyright © 2025 Contoso Bank. All rights reserved.

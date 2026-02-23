@@ -33,7 +33,7 @@ This guide walks you through onboarding a new document type for automated extrac
 ### 3. Configure Extraction
 
 #### Basic Information
-- **Document Type Name**: Enter a descriptive name (e.g., "Bank Statement - HSBC")
+- **Document Type Name**: Enter a descriptive name (e.g., "Bank Statement - Contoso")
 - **Description**: Add context about this document type
 - **Version**: Specify version number (e.g., "1.0.0")
 

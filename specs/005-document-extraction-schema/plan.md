@@ -111,17 +111,17 @@ Add to `.env` or Azure App Configuration:
 
 ```bash
 # Azure Cosmos DB
-EXTRACTION_COSMOS_ENDPOINT=https://hsbc-underwriting.documents.azure.com:443/
+EXTRACTION_COSMOS_ENDPOINT=https://contoso-underwriting.documents.azure.com:443/
 EXTRACTION_COSMOS_KEY=<use-azure-key-vault>
 EXTRACTION_COSMOS_DATABASE=extraction_db
 
 # Azure OpenAI
-EXTRACTION_OPENAI_ENDPOINT=https://hsbc-openai.openai.azure.com/
+EXTRACTION_OPENAI_ENDPOINT=https://contoso-openai.openai.azure.com/
 EXTRACTION_OPENAI_KEY=<use-azure-key-vault>
 EXTRACTION_OPENAI_DEPLOYMENT_GPT4_VISION=gpt-4-vision-preview
 
 # Azure Document Intelligence (Phase 4)
-EXTRACTION_DOC_INTELLIGENCE_ENDPOINT=https://hsbc-doc-intel.cognitiveservices.azure.com/
+EXTRACTION_DOC_INTELLIGENCE_ENDPOINT=https://contoso-doc-intel.cognitiveservices.azure.com/
 EXTRACTION_DOC_INTELLIGENCE_KEY=<use-azure-key-vault>
 
 # Performance
@@ -217,7 +217,7 @@ curl -X POST http://localhost:8000/api/v1/extraction/document-types \
   -d '{
     "name": "Bank Statement",
     "description": "Monthly bank account statements from major financial institutions",
-    "created_by": "system@hsbc.com"
+    "created_by": "system@contoso.com"
   }'
 
 # Response includes document_type_id: "550e8400-e29b-41d4-a716-446655440000"
@@ -294,7 +294,7 @@ curl -X POST http://localhost:8000/api/v1/extraction/document-types/550e8400-e29
   },
   "citation_level": "bounding_box",
   "confidence_threshold": 0.7,
-  "created_by": "system@hsbc.com"
+  "created_by": "system@contoso.com"
 }
 EOF
 ```

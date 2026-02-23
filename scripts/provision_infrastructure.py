@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Infrastructure Provisioning Script for HSBC IWPB Underwriting POC.
+Infrastructure Provisioning Script for Contoso IWPB Underwriting POC.
 
 This script creates all required Cosmos DB databases, containers, and Blob Storage containers
 for the application. It uses Azure AD authentication (DefaultAzureCredential).
@@ -240,7 +240,7 @@ async def main(
     database_name = os.getenv("COSMOS_DATABASE_NAME", "underwriting")
     
     print("\n" + "=" * 70)
-    print("HSBC IWPB Underwriting - Infrastructure Provisioning")
+    print("Contoso IWPB Underwriting - Infrastructure Provisioning")
     print("=" * 70)
     print(f"\nConfiguration:")
     print(f"  Cosmos Endpoint:  {cosmos_endpoint or 'NOT SET'}")
@@ -281,7 +281,7 @@ async def main(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Provision Azure infrastructure for HSBC IWPB Underwriting"
+        description="Provision Azure infrastructure for Contoso IWPB Underwriting"
     )
     parser.add_argument(
         "--dry-run",

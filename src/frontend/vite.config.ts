@@ -13,7 +13,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'https://app-hsbc-iwpb-uw-dev.azurewebsites.net',
+        target: 'https://app-contoso-iwpb-uw-dev.azurewebsites.net',
         changeOrigin: true,
         secure: true,
         rewrite: (path) => path

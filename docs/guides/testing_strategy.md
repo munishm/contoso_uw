@@ -1,6 +1,6 @@
 # Testing Strategy
 
-This document outlines the testing approach for the HSBC Insurance Underwriting Automation Platform monorepo.
+This document outlines the testing approach for the Contoso Bank Insurance Underwriting Automation Platform monorepo.
 
 ## Testing Philosophy
 

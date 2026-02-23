@@ -1,6 +1,6 @@
 # Artifact Analysis
 
-Artifact: HSBC_Insurance Underwriting.md
+Artifact: Contoso_Insurance Underwriting.md
 Date: 2025-11-29
 
 ## Themes

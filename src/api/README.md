@@ -1,7 +1,7 @@
 ---
 title: "Underwriting Case Management API"
-description: "FastAPI backend for the HSBC IWPB Underwriting POC - provides REST API for case and document management"
-author: "HSBC IWPB UW Team"
+description: "FastAPI backend for the Contoso Bank IWPB Underwriting POC - provides REST API for case and document management"
+author: "Contoso Bank IWPB UW Team"
 ms.date: 2025-12-18
 ms.topic: reference
 ---
@@ -47,7 +47,7 @@ brew install uv
 
 ```bash
 # Navigate to project root
-cd /path/to/HSBC_IWPB_UW
+cd /path/to/Contoso_IWPB_UW
 
 # Sync dependencies (creates .venv automatically)
 uv sync --extra api
@@ -183,7 +183,7 @@ BLOB_CONTAINER_NAME=documents
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `APP_NAME` | No | `hsbc-iwpb-uw` | Application name |
+| `APP_NAME` | No | `contoso-iwpb-uw` | Application name |
 | `APP_ENV` | No | `development` | Environment (development/staging/production) |
 | `DEBUG` | No | `false` | Enable debug mode |
 | `LOG_LEVEL` | No | `INFO` | Logging level |
@@ -329,4 +329,4 @@ uv python install 3.11
 
 ## License
 
-Proprietary - HSBC Internal Use Only
+Proprietary - Contoso Bank Internal Use Only

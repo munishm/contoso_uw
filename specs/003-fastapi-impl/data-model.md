@@ -23,8 +23,8 @@
   "created_at": "2025-12-17T10:30:00Z",
   "updated_at": "2025-12-17T10:30:00Z",
   "deleted_at": null,
-  "created_by": "user@hsbc.com",
-  "assigned_to": "underwriter@hsbc.com",
+  "created_by": "user@contoso.com",
+  "assigned_to": "underwriter@contoso.com",
   "metadata": {},
   "case_summary": null,
   "case_summary_updated_at": null,
@@ -32,7 +32,7 @@
     {
       "previous_status": null,
       "new_status": "draft",
-      "changed_by": "user@hsbc.com",
+      "changed_by": "user@contoso.com",
       "changed_at": "2025-12-17T10:30:00Z",
       "reason": "Case created"
     }

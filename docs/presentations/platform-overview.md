@@ -1,32 +1,32 @@
 ---
-title: "HSBC Document Intelligence Platform"
+title: "Contoso Bank Document Intelligence Platform"
 description: "Executive presentation showcasing the Document Intelligence Platform capabilities for insurance underwriting automation"
-author: "HSBC IWPB Engineering Team"
+author: "Contoso Bank IWPB Engineering Team"
 ms.date: 2026-01-14
 marp: true
 theme: default
 paginate: true
 style: |
   :root {
-    --hsbc-red: #DB0011;
-    --hsbc-black: #000000;
-    --hsbc-white: #FFFFFF;
+    --contoso-blue: #0078D4;
+    --contoso-black: #000000;
+    --contoso-white: #FFFFFF;
   }
   section {
     font-family: 'Segoe UI', Arial, sans-serif;
   }
   h1, h2 {
-    color: var(--hsbc-red);
+    color: var(--contoso-blue);
   }
   section.title {
-    background: linear-gradient(135deg, #DB0011 0%, #8B0000 100%);
+    background: linear-gradient(135deg, #0078D4 0%, #005A9E 100%);
     color: white;
   }
   section.title h1, section.title h2 {
     color: white;
   }
   .highlight {
-    color: var(--hsbc-red);
+    color: var(--contoso-blue);
     font-weight: bold;
   }
   table {
@@ -47,7 +47,7 @@ style: |
 
 <!-- _class: title -->
 
-# HSBC Document Intelligence Platform
+# Contoso Bank Document Intelligence Platform
 
 ## Next-Generation Document Processing for Insurance Underwriting
 

@@ -1,7 +1,7 @@
 <!-- markdownlint-disable-file -->
 <!-- markdown-table-prettify-ignore-start -->
 # HNW Underwriting Automation POC - Product Requirements Document (PRD)
-Version 1.0 | Status Draft | Owner TBD | Team HSBC Underwriting | Target POC Phase | Lifecycle Pilot
+Version 1.0 | Status Draft | Owner TBD | Team Contoso Underwriting | Target POC Phase | Lifecycle Pilot
 
 ## Progress Tracker
 | Phase | Done | Gaps | Updated |
@@ -17,7 +17,7 @@ Unresolved Critical Questions: 6 | TBDs: 8
 
 ## 1. Executive Summary
 ### Context
-This POC establishes the foundational capabilities for HSBC's HNW Insurance Underwriting Automation platform, focusing on document classification, field extraction, and summarization. The pilot targets 2 English-language application forms with 5-6 key fields per document, validating the technical approach before broader rollout.
+This POC establishes the foundational capabilities for Contoso's HNW Insurance Underwriting Automation platform, focusing on document classification, field extraction, and summarization. The pilot targets 2 English-language application forms with 5-6 key fields per document, validating the technical approach before broader rollout.
 
 ### Core Opportunity
 Prove the viability of AI-powered document processing for insurance underwriting by demonstrating accurate classification, extraction, and summarization on a constrained dataset. Success validates the approach for scaling to 40-50 document types in production.
@@ -41,14 +41,14 @@ Prove the viability of AI-powered document processing for insurance underwriting
 
 ## 2. Problem Definition
 ### Current Situation
-HSBC underwriters manually review insurance application forms, extracting key information and creating summaries for underwriting decisions. This POC focuses on:
+Contoso underwriters manually review insurance application forms, extracting key information and creating summaries for underwriting decisions. This POC focuses on:
 * **Document Types**: 2 English-language application forms
 * **Extraction Fields**: 5-6 key fields per document type (e.g., applicant name, policy amount, coverage dates, medical conditions, beneficiaries)
 * **Current Process**: Manual reading, data entry, and memo creation
 * **Pain Points**: Time-consuming, error-prone, inconsistent quality
 
 ### Problem Statement
-Before investing in full-scale automation for 40-50 document types, HSBC needs validated proof that AI can accurately classify documents, extract structured fields, and generate quality summaries with proper citations.
+Before investing in full-scale automation for 40-50 document types, Contoso needs validated proof that AI can accurately classify documents, extract structured fields, and generate quality summaries with proper citations.
 
 ### Root Causes
 * No automated document processing infrastructure
@@ -140,7 +140,7 @@ Before investing in full-scale automation for 40-50 document types, HSBC needs v
 * **Budget**: POC budget TBD
 * **Resources**: Small team (2-3 engineers, 1 data scientist, 1 SME)
 * **Data**: Limited to 2 document types for POC
-* **Infrastructure**: Azure development environment only (internal HSBC Azure subscription)
+* **Infrastructure**: Azure development environment only (internal Contoso Azure subscription)
 
 ## 5. Product Overview
 ### Value Proposition
@@ -325,12 +325,12 @@ HNW Underwriting POC
 | Regulation | Applicability | Action | Owner | Status |
 |-----------|--------------|--------|-------|--------|
 | GDPR/CCPA | If using real data | Use anonymized data for POC | Legal | TBD |
-| Internal Security | Development environment | Follow HSBC dev security policies | Engineering | TBD |
+| Internal Security | Development environment | Follow Contoso dev security policies | Engineering | TBD |
 
 ## 12. Operational Considerations
 | Aspect | Requirement | Notes |
 |--------|------------|-------|
-| Deployment | Azure development environment; Manual deployment acceptable | Internal HSBC Azure subscription |
+| Deployment | Azure development environment; Manual deployment acceptable | Internal Contoso Azure subscription |
 | Rollback | Manual rollback for POC | Version control for configs and models |
 | Monitoring | Basic dashboards: OCR quality, classification accuracy, extraction confidence | Development monitoring |
 | Alerting | Email alerts for failures | Simple alerting |

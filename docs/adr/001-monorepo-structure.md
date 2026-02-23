@@ -6,7 +6,7 @@
 
 ## Context
 
-We need to establish a directory structure for the HSBC Insurance Underwriting Automation Platform that supports:
+We need to establish a directory structure for the Contoso Bank Insurance Underwriting Automation Platform that supports:
 - Multiple pluggable components that can be independently developed and deployed
 - Shared utilities and models across components
 - Clear separation between source code, tests, and documentation
@@ -19,7 +19,7 @@ The structure must enable efficient development while maintaining clarity and pr
 We will use a **monorepo structure** with the following organization:
 
 ```
-HSBC_IWPB_UW/
+CONTOSO_IWPB_UW/
 ├── src/                    # All component source code
 │   ├── interfaces/        # Component contracts
 │   ├── shared/            # Shared utilities

@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/commercial-software-engineering/HSBC_IWPB_UW/schemas/monorepo-structure.json",
-  "title": "HSBC Monorepo Structure Schema",
-  "description": "JSON Schema for validating HSBC Insurance Underwriting monorepo directory structure compliance",
+  "$id": "https://github.com/commercial-software-engineering/Contoso_IWPB_UW/schemas/monorepo-structure.json",
+  "title": "Contoso Monorepo Structure Schema",
+  "description": "JSON Schema for validating Contoso Insurance Underwriting monorepo directory structure compliance",
   "version": "0.1.0",
   "type": "object",
   "required": ["workspace"],
@@ -20,7 +20,7 @@
         "name": {
           "type": "string",
           "description": "Repository name",
-          "example": "HSBC_IWPB_UW"
+          "example": "Contoso_IWPB_UW"
         },
         "root_path": {
           "type": "string",

@@ -173,7 +173,7 @@ async def main(dry_run: bool = False, specific_case_id: Optional[str] = None):
     blob_container_name = os.getenv("BLOB_CONTAINER_NAME", "documents")
     
     print("\n" + "=" * 70)
-    print("HSBC IWPB Underwriting - Data Cleanup Script")
+    print("Contoso IWPB Underwriting - Data Cleanup Script")
     print("=" * 70)
     print(f"\nConfiguration:")
     print(f"  Cosmos Database: {database_name}")

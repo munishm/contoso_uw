@@ -47,7 +47,7 @@ This API enables underwriters to manage insurance cases and documents with autom
 ### Create a Case
 
 ```bash
-curl -X POST https://api.underwriting.hsbc.com/v1/cases \
+curl -X POST https://api.underwriting.contoso.com/v1/cases \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -71,7 +71,7 @@ Response:
 ### Upload Document
 
 ```bash
-curl -X POST https://api.underwriting.hsbc.com/v1/cases/CASE-202512-000001/documents \
+curl -X POST https://api.underwriting.contoso.com/v1/cases/CASE-202512-000001/documents \
   -H "Authorization: Bearer <token>" \
   -F "file=@application_form.pdf"
 ```
@@ -79,7 +79,7 @@ curl -X POST https://api.underwriting.hsbc.com/v1/cases/CASE-202512-000001/docum
 ### Get Case with Summary
 
 ```bash
-curl https://api.underwriting.hsbc.com/v1/cases/CASE-202512-000001 \
+curl https://api.underwriting.contoso.com/v1/cases/CASE-202512-000001 \
   -H "Authorization: Bearer <token>"
 ```
 

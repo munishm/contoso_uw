@@ -18,7 +18,7 @@
 ### 1. Navigate to Project Root
 
 ```bash
-cd /home/ksharma/microsoft/hsbc/poc/HSBC_IWPB_UW
+cd /home/ksharma/microsoft/contoso/poc/Contoso_IWPB_UW
 ```
 
 ### 2. Create Python Virtual Environment
@@ -300,7 +300,7 @@ docker run -p 8081:8081 -p 10251:10251 -p 10252:10252 -p 10253:10253 -p 10254:10
 If you get `ModuleNotFoundError: No module named 'src'`, ensure you're running from the project root:
 
 ```bash
-cd /home/ksharma/microsoft/hsbc/poc/HSBC_IWPB_UW
+cd /home/ksharma/microsoft/contoso/poc/Contoso_IWPB_UW
 uvicorn src.api.main:app --reload
 ```
 

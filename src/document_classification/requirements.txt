@@ -1,4 +1,4 @@
-# Requirements for HSBC Document Classification Module
+# Requirements for Contoso Bank Document Classification Module
 # Core dependencies for document classification functionality
 
 # Azure services

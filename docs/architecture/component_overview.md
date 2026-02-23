@@ -2,7 +2,7 @@
 
 ## System Architecture
 
-The HSBC Insurance Underwriting Automation Platform follows a **monorepo architecture** with **pluggable components** that communicate through well-defined interfaces. This design enables independent development, testing, and deployment of components while maintaining system coherence.
+The Contoso Insurance Underwriting Automation Platform follows a **monorepo architecture** with **pluggable components** that communicate through well-defined interfaces. This design enables independent development, testing, and deployment of components while maintaining system coherence.
 
 ## Component Diagram
 

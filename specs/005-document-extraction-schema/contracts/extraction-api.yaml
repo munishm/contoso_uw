@@ -16,7 +16,7 @@ info:
     All endpoints require Bearer token authentication via Azure AD.
   version: 1.0.0
   contact:
-    name: HSBC Underwriting Platform Team
+    name: Contoso Underwriting Platform Team
 
 servers:
   - url: /api/v1

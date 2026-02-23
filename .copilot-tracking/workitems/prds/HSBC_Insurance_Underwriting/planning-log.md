@@ -6,7 +6,7 @@ Status: In progress
 
 Actions:
 
-- Read PRD artifact `HSBC_Insurance Underwriting.md`.
+- Read PRD artifact `Contoso_Insurance Underwriting.md`.
 - Extracted themes, pipeline steps, and action items.
 - Started drafting Epics, Features, and User Stories candidates.
 

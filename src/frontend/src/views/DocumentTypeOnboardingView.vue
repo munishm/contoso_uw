@@ -844,7 +844,7 @@ const config = ref<OnboardingTestConfig>({
   custom_prompt: '',
   citation_level: 'bounding_box',
   confidence_threshold: 0.7,
-  created_by: 'admin@hsbc.com'
+  created_by: 'admin@contoso.com'
 })
 
 const inputSchemaJson = ref('{}')

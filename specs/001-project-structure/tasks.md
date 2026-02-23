@@ -315,19 +315,19 @@ echo "User Story 1 directories created" >> docs/architecture/component_overview.
 # All pyproject.toml files can be created in parallel:
 cat > src/document_classification/pyproject.toml << EOF &
 [project]
-name = "hsbc-document-classification"
+name = "contoso-document-classification"
 version = "0.1.0"
 EOF
 
 cat > src/entity_extraction/pyproject.toml << EOF &
 [project]
-name = "hsbc-entity-extraction"
+name = "contoso-entity-extraction"
 version = "0.1.0"
 EOF
 
 cat > src/document_summarization/pyproject.toml << EOF &
 [project]
-name = "hsbc-document-summarization"
+name = "contoso-document-summarization"
 version = "0.1.0"
 EOF
 

@@ -46,7 +46,7 @@ npx openapi-typescript http://localhost:8000/api/openapi.json -o src/types/gener
 ### Base URLs
 
 - **Local Development**: `http://localhost:8000/api`
-- **Development Environment**: `https://api-dev.hsbc-underwriting.internal/api`
+- **Development Environment**: `https://api-dev.contoso-underwriting.internal/api`
 
 ### Authentication
 

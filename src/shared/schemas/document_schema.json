@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://hsbc.com/schemas/document.json",
+  "$id": "https://contoso.com/schemas/document.json",
   "title": "Document",
   "description": "Schema for document objects in the underwriting system",
   "type": "object",

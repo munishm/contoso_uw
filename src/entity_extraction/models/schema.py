@@ -25,7 +25,7 @@ class DocumentType(BaseModel):
                 {
                     "name": "Bank Statement",
                     "description": "Monthly bank account statements from major financial institutions",
-                    "created_by": "admin@hsbc.com"
+                    "created_by": "admin@contoso.com"
                 }
             ]
         }
@@ -97,7 +97,7 @@ class DocumentTypeVersion(BaseModel):
                     },
                     "citation_level": "bounding_box",
                     "confidence_threshold": 0.7,
-                    "created_by": "admin@hsbc.com"
+                    "created_by": "admin@contoso.com"
                 }
             ]
         }
@@ -123,7 +123,7 @@ class ExtractionModel(BaseModel):
                 {
                     "name": "azure_gpt4_vision",
                     "type": "vision",
-                    "endpoint": "https://hsbc-openai.openai.azure.com/",
+                    "endpoint": "https://contoso-openai.openai.azure.com/",
                     "version": "gpt-4-vision-preview",
                     "api_version": "2024-02-15-preview",
                     "capabilities": ["ocr", "structured_extraction", "spatial_understanding"]

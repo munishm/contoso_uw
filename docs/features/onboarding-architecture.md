@@ -70,7 +70,7 @@
 │                      STEP 2: Configure                      │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  Document Type Name: [Bank Statement - HSBC          ]     │
+│  Document Type Name: [Bank Statement - Contoso          ]     │
 │  Description:        [Monthly statements...          ]     │
 │  Version:            [1.0.0                          ]     │
 │                                                             │
@@ -139,7 +139,7 @@
 │  ℹ️ Review your configuration before finalizing            │
 │                                                             │
 │  📋 Summary:                                                │
-│    • Document Type: Bank Statement - HSBC                   │
+│    • Document Type: Bank Statement - Contoso                   │
 │    • Version: 1.0.0                                         │
 │    • Extraction Model: azure_gpt4_vision                    │
 │    • Fields to Extract: 15 fields                           │
@@ -256,7 +256,7 @@ User                Frontend              Backend               External Service
 │ {                                                       │
 │   "id": "uuid",                                         │
 │   "document_type_id": "uuid",                           │
-│   "name": "Bank Statement - HSBC",                      │
+│   "name": "Bank Statement - Contoso",                      │
 │   "version": "1.0.0",                                   │
 │   "input_schema": {                                     │
 │     "account_number": {"type": "string", ...},          │
@@ -278,7 +278,7 @@ User                Frontend              Backend               External Service
 │   },                                                    │
 │   "citation_level": "bounding_box",                     │
 │   "confidence_threshold": 0.7,                          │
-│   "created_by": "admin@hsbc.com",                       │
+│   "created_by": "admin@contoso.com",                       │
 │   "is_active": true                                     │
 │ }                                                       │
 └─────────────────────────────────────────────────────────┘

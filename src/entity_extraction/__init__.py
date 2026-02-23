@@ -1,4 +1,4 @@
-"""Entity extraction module for HSBC underwriting automation.
+"""Entity extraction module for Contoso Bank underwriting automation.
 
 This module provides schema-based document extraction capabilities with:
 - Configurable document type schemas with versioning

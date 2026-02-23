@@ -1,4 +1,4 @@
-# Quickstart: HSBC Monorepo Structure
+# Quickstart: Contoso Monorepo Structure
 
 **Feature**: [spec.md](spec.md) | **Plan**: [plan.md](plan.md) | **Research**: [research.md](research.md)  
 **Created**: 15 December 2025  
@@ -6,7 +6,7 @@
 
 ## Welcome
 
-This guide helps you understand and navigate the HSBC Insurance Underwriting monorepo structure in under 30 minutes (Success Criterion SC-006). By the end, you'll know where everything lives and how to add new code correctly.
+This guide helps you understand and navigate the Contoso Insurance Underwriting monorepo structure in under 30 minutes (Success Criterion SC-006). By the end, you'll know where everything lives and how to add new code correctly.
 
 ---
 
@@ -111,13 +111,13 @@ src/
 
 3. **Add package manifest** (FR-013 requirement):
    ```bash
-   uv init --name hsbc-risk-assessment
+   uv init --name contoso-risk-assessment
    ```
    
    Or create `pyproject.toml` manually:
    ```toml
    [project]
-   name = "hsbc-risk-assessment"
+   name = "contoso-risk-assessment"
    version = "0.1.0"
    description = "Risk assessment component"
    requires-python = ">=3.11"
@@ -220,7 +220,7 @@ def process(self, doc):
    # .env.dev
    AZURE_OPENAI_ENDPOINT=https://your-endpoint.openai.azure.com/
    AZURE_OPENAI_API_KEY=your-key-here
-   DATABASE_URL=postgresql://localhost/hsbc_dev
+   DATABASE_URL=postgresql://localhost/contoso_dev
    ```
 
 3. Load in code:

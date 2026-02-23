@@ -18,7 +18,7 @@
 ### 1. Clone and Navigate
 
 ```bash
-cd /home/ksharma/microsoft/hsbc/poc/HSBC_IWPB_UW
+cd /home/ksharma/microsoft/contoso/poc/Contoso_IWPB_UW
 ```
 
 ### 2. Create Python Virtual Environment

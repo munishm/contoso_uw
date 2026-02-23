@@ -1,6 +1,6 @@
 ## HNW Insurance Underwriting Process
 
-### Overall goal of the HSBC UW Engagement is entailed below
+### Overall goal of the Contoso UW Engagement is entailed below
 
 - Reduction in manual underwriting processing time to lower than 3 hours per case
 - Establish a standardized case management framework that ensures consistency and auditability across all cases, with full traceability back to source documents to strengthen compliance, transparency, and decision-making integrity.
@@ -38,7 +38,7 @@
 ### For Phase 1 of the release below are high level focus areas for the project
 
 - If customer data is made available, understand the distribution of documents and identify distinct patterns which can create the sample set of documents for subsequent MVEs
-- This sample set should be representative of the document structural patterns for the sample set selected for Phase 1 release for HSBC
+- This sample set should be representative of the document structural patterns for the sample set selected for Phase 1 release for Contoso
 - In the absence of customer data, synthetic data generation needs to be considered
 - Synthetic Data Generation for specific document types including application form, medical lab reports and individual ID cards to be considered
 - Finalize the approach for Synthetic Data Generation for Documents

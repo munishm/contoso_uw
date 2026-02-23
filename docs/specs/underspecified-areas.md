@@ -118,7 +118,7 @@ This document identifies **38 underspecified areas** across the feature specific
 3. Is global distribution needed (multi-region)?
 4. What is the expected data volume for POC (hundreds vs thousands of documents)?
 5. What are the cost constraints?
-6. Is there existing HSBC preference/standard?
+6. Is there existing Contoso preference/standard?
 
 **Answers**
 1. No need
@@ -142,13 +142,13 @@ This document identifies **38 underspecified areas** across the feature specific
 **Issue:**
 - Unknown if Azure AI Document Intelligence is provisioned and accessible
 - Unknown if Azure OpenAI Service is provisioned with sufficient GPT-4 quota
-- No confirmation of HSBC Azure subscription access
+- No confirmation of Contoso Azure subscription access
 - No Azure resource group or service principal details provided
 
 **Questions:**
 1. Is Azure AI Document Intelligence already provisioned? If yes, what region and endpoint?
 2. Is Azure OpenAI Service provisioned? If yes, what models and quota (TPM)?
-3. What is the HSBC Azure subscription ID and region?
+3. What is the Contoso Azure subscription ID and region?
 4. Are there security/compliance approvals needed for Azure OpenAI usage?
 5. Who has admin access to provision resources?
 6. Are there cost limits or budgets for POC?
@@ -391,7 +391,7 @@ As this is POC, dont worry on error handling.
 
 **Questions:**
 1. What is the frontend team's preferred framework?
-2. Are there HSBC standards or existing component libraries for React or Vue?
+2. Are there Contoso standards or existing component libraries for React or Vue?
 3. Is TypeScript required or optional?
 4. Are there accessibility requirements (WCAG 2.1 AA compliance mentioned in tasks)?
 5. What is the expected UI complexity (simple CRUD vs rich interactions)?
@@ -423,7 +423,7 @@ As this is POC, dont worry on error handling.
 1. Is async I/O needed for POC (concurrent document processing)?
 2. Is auto-generated API documentation (OpenAPI/Swagger) required?
 3. What is the backend team's Python framework experience?
-4. Are there existing HSBC Python API standards?
+4. Are there existing Contoso Python API standards?
 
 **Answers**
 1. Yes

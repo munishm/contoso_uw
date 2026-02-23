@@ -1,8 +1,8 @@
 {
-  "name": "hsbc-underwriter-ui",
+  "name": "contoso-underwriter-ui",
   "version": "0.1.0",
   "type": "module",
-  "description": "HSBC Underwriter UI for Document Processing - POC",
+  "description": "Contoso Underwriter UI for Document Processing - POC",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc && vite build",

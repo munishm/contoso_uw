@@ -169,7 +169,7 @@ Represents organized tests for a component.
 Represents the entire monorepo.
 
 **Attributes**:
-- `name` (string, required): Repository name (e.g., "HSBC_IWPB_UW")
+- `name` (string, required): Repository name (e.g., "Contoso_IWPB_UW")
 - `root_path` (string, required): Absolute path to repository root
 - `architecture` (enum, required): "monorepo"
 - `naming_convention` (enum, required): "snake_case"

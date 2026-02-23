@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     )
 
     # Application
-    app_name: str = Field(default="hsbc-iwpb-uw", alias="APP_NAME")
+    app_name: str = Field(default="contoso-iwpb-uw", alias="APP_NAME")
     app_env: str = Field(default="development", alias="APP_ENV")
     debug: bool = Field(default=False, alias="DEBUG")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")

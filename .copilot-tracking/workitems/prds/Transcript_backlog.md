@@ -346,7 +346,7 @@ Stand up regional architecture (HK insurance, UK/Singapore credit) with Azure Do
 ## Epic 7: Team Onboarding & Collaboration Enablement
 
 **Description:**
-Accelerate ISE + HSBC team alignment (onboarding 3–4 weeks) with clear role definitions & early collaboration materials.
+Accelerate ISE + Contoso team alignment (onboarding 3–4 weeks) with clear role definitions & early collaboration materials.
 **Priority:** 3
 
 ### User Story 7.1: Role & Responsibility Matrix
@@ -356,7 +356,7 @@ Accelerate ISE + HSBC team alignment (onboarding 3–4 weeks) with clear role de
 **Acceptance Criteria:**
 
 - [ ] RACI table published
-- [ ] Reviewed by ISE + HSBC leads
+- [ ] Reviewed by ISE + Contoso leads
 - [ ] Linked from project README
 - [ ] Updated when new roles onboard
 - [ ] Version tagged (v1.0)

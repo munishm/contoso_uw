@@ -1,6 +1,6 @@
 # Environment Configuration Guide
 
-This guide explains how to manage environment-specific configurations in the HSBC Insurance Underwriting monorepo.
+This guide explains how to manage environment-specific configurations in the Contoso Bank Insurance Underwriting monorepo.
 
 ## Overview
 
@@ -175,7 +175,7 @@ Enable/disable features:
 
 1. **Store secrets in Azure Key Vault**:
    ```bash
-   az keyvault secret set --vault-name hsbc-uw-prod-kv \
+   az keyvault secret set --vault-name contoso-uw-prod-kv \
      --name "AzureOpenAIKey" --value "actual-key"
    ```
 
@@ -185,7 +185,7 @@ Enable/disable features:
    from azure.keyvault.secrets import SecretClient
 
    credential = DefaultAzureCredential()
-   client = SecretClient(vault_url="https://hsbc-uw-prod-kv.vault.azure.net/", 
+   client = SecretClient(vault_url="https://contoso-uw-prod-kv.vault.azure.net/", 
                         credential=credential)
    
    api_key = client.get_secret("AzureOpenAIKey").value

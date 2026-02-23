@@ -22,7 +22,7 @@ This document resolves all NEEDS CLARIFICATION items from Technical Context and 
 - **Type Safety**: TypeScript interfaces or Python Protocols provide compile-time guarantees
 - **Versioning**: Semantic versioning in interface contracts prevents breaking changes
 
-**Recommendation for HSBC Project**:
+**Recommendation for Contoso Project**:
 ```
 src/
 ├── interfaces/                 # Component interaction contracts
@@ -78,7 +78,7 @@ src/
    - ✅ Testable (mock components)
    - ❌ Requires DI framework
 
-**Recommendation for HSBC Project**:
+**Recommendation for Contoso Project**:
 
 **POC Phase**: Orchestrator Pattern with Interface Contracts
 - Central workflow orchestrator in `src/orchestration/workflow.py`
@@ -155,7 +155,7 @@ src/
 - **Poetry**: Popular but slower than UV
 - **pip + requirements.txt**: Manual but universally understood
 
-**Recommendation for HSBC Project**:
+**Recommendation for Contoso Project**:
 
 **For Python-Heavy Monorepo**:
 - **Primary**: UV workspaces (UV supports monorepo workspaces natively)
@@ -597,12 +597,12 @@ logs/
 ```python
 # src/document_classification/pyproject.toml
 [project]
-name = "hsbc-document-classification"
+name = "contoso-document-classification"
 version = "1.2.3"
 
 # src/entity_extraction/pyproject.toml
 [project]
-name = "hsbc-entity-extraction"
+name = "contoso-entity-extraction"
 version = "2.0.1"
 ```
 

@@ -10,7 +10,7 @@ This guide walks through the essential steps to set up and use schema-based docu
 ## Prerequisites
 
 - Python 3.11+
-- Access to HSBC Azure subscription
+- Access to Contoso Azure subscription
 - Azure AI Document Intelligence endpoint and key
 - Azure OpenAI Service endpoint and deployment
 - Azure Cosmos DB database provisioned

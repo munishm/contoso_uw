@@ -61,7 +61,7 @@ description: "Implementation tasks for HNW Underwriting Automation POC - Updated
 
 ### Azure Infrastructure Provisioning
 
-- [ ] T001 Create Azure resource group for POC in HSBC subscription
+- [ ] T001 Create Azure resource group for POC in Contoso subscription
 - [ ] T002 [P] Provision Azure Blob Storage with containers: `poc-documents-raw`, `poc-preprocessed-images`
 - [ ] T003 [P] Provision Azure AI Document Intelligence resource and verify API access (Layout API model)
 - [ ] T004 [P] Provision Azure OpenAI Service (GPT-4o with 120 TPM quota confirmed)

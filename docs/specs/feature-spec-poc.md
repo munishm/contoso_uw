@@ -45,7 +45,7 @@ This document specifies the features for the HNW Underwriting Automation POC, fo
 - **Storage**: Azure Blob Storage, Azure Cosmos DB
 - **Backend**: Python FastAPI (async support)
 - **Frontend**: Vue.js (lightweight SPA)
-- **Infrastructure**: Internal HSBC Azure subscription (provisioned)
+- **Infrastructure**: Internal Contoso Azure subscription (provisioned)
 
 ---
 
