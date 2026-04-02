@@ -1,0 +1,21 @@
+pipeline:
+  name: case_summary_claims
+  version: "1.0"
+  description: "Claims multi-attachment NER and delivery"
+
+  stages:
+    - name: analyze
+      steps:
+        - name: ner
+          version: v1
+          on_failure: stop
+
+    - name: deliver
+      steps:
+        - name: send
+          version: v1
+          config:
+            result_key: ner
+            url: "${CLAIMS_FRONT_END_URL}"
+            key_vault_url: "${CLAIMS_KEY_VAULT_URL}"
+            secret_name: "${CLAIMS_SECRET_NAME}"

@@ -1,0 +1,27 @@
+pipeline:
+  name: document_summary_claims
+  version: "1.0"
+  description: "Claims document processing with classification, OCR, and delivery"
+
+  stages:
+    - name: classify
+      steps:
+        - name: classification
+          version: v3
+          on_failure: stop
+
+    - name: extract
+      steps:
+        - name: ocr
+          version: v2
+          on_failure: stop
+
+    - name: deliver
+      steps:
+        - name: send
+          version: v1
+          config:
+            result_key: ocr
+            url: "${CLAIMS_FRONT_END_URL}"
+            key_vault_url: "${CLAIMS_KEY_VAULT_URL}"
+            secret_name: "${CLAIMS_SECRET_NAME}"

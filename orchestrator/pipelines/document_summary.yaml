@@ -1,0 +1,24 @@
+pipeline:
+  name: document_summary
+  version: "1.0"
+  description: "Single-document classification, OCR extraction, and delivery"
+
+  stages:
+    - name: classify
+      steps:
+        - name: classification
+          version: v3
+          on_failure: stop
+
+    - name: extract
+      steps:
+        - name: ocr
+          version: v2
+          on_failure: stop
+
+    - name: deliver
+      steps:
+        - name: send
+          version: v1
+          config:
+            result_key: ocr

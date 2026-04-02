@@ -1,0 +1,18 @@
+pipeline:
+  name: case_summary
+  version: "1.0"
+  description: "Multi-attachment NER extraction and delivery"
+
+  stages:
+    - name: analyze
+      steps:
+        - name: ner
+          version: v1
+          on_failure: stop
+
+    - name: deliver
+      steps:
+        - name: send
+          version: v1
+          config:
+            result_key: ner
