@@ -1,19 +1,12 @@
-"""Durable Functions adapter for the pipeline orchestrator.
+"""Pure business logic for the pipeline orchestrator (Durable Functions).
 
 Wraps :class:`PipelineEngine` for Azure Durable Functions so that each step
 becomes a ``call_activity`` (checkpointed, independently scalable) and parallel
 stages use ``task_all`` (fan-out / fan-in).
 
-This module is a drop-in replacement for the hardcoded ``if/elif`` branching in
-``function_queue_durable.py``.  Register its blueprint in ``function_app.py``
-to activate it.
-
-Architecture
-~~~~~~~~~~~~
-* ``pipeline_queue_trigger``  — queue trigger → decode message → start orchestration
-* ``pipeline_orchestrator``   — deterministic generator; yields ``call_activity``
-  and ``task_all`` for the Durable Functions runtime
-* ``pipeline_step_activity``  — activity function; resolves + executes one step
+This module contains **only** pure logic — no Azure Functions decorators or
+wiring.  The durable function handlers live in ``function_durable_pipeline.py``
+and decorators are applied at module level in ``function_app.py``.
 """
 
 from __future__ import annotations
@@ -221,110 +214,3 @@ async def _execute_with_retry(
         ctx.errors.append({"step": step_name, "error": str(last_exc), "retries_exhausted": True})
         return ctx
     raise last_exc
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Azure Functions wiring  — thin decorators over the core logic above
-# ═══════════════════════════════════════════════════════════════════════════
-
-def register_durable_functions():
-    """Create and return a Blueprint with the durable function bindings.
-
-    Call this from ``function_app.py``::
-
-        from src.orchestrator.durable_adapter import register_durable_functions
-        orchestrator_bp = register_durable_functions()
-        app.register_functions(orchestrator_bp)
-    """
-    import azure.functions as func
-    import azure.functions.durable_functions as df
-    from src.config.settings import config_settings
-
-    bp = func.Blueprint()
-
-    @bp.queue_trigger(
-        arg_name="msg",
-        queue_name=config_settings.queneu_name_in_doc + "durable",
-        connection="INStorage",
-    )
-    @bp.durable_client_input(client_name="df_client")
-    async def pipeline_queue_trigger(
-        msg: func.QueueMessage,
-        df_client: df.DurableOrchestrationClient,
-    ) -> None:
-        try:
-            message = decode_queue_message(msg.get_body())
-            logger.info(
-                "Starting pipeline orchestration  requestType=%s  messageId=%s",
-                message.get("requestType"), message.get("messageId"),
-            )
-            instance_id = await df_client.start_new(
-                orchestration_function_name="pipeline_orchestrator",
-                instance_id=None,
-                client_input=message,
-            )
-            logger.info("Started orchestration ID='%s'", instance_id)
-        except Exception as e:
-            logger.error("Error processing pipeline queue message: %s", e)
-            raise
-
-    @bp.orchestration_trigger(context_name="context")
-    def pipeline_orchestrator(context: df.DurableOrchestrationContext):
-        return run_orchestrator(context)
-
-    @bp.activity_trigger(input_name="activity_input")
-    async def pipeline_step_activity(activity_input: dict) -> dict:
-        return await execute_step_activity(activity_input)
-
-    @bp.route(route="pipeline/test", methods=["POST"], auth_level=func.AuthLevel.FUNCTION)
-    @bp.durable_client_input(client_name="df_client")
-    async def pipeline_http_test_trigger(
-        req: func.HttpRequest,
-        df_client: df.DurableOrchestrationClient,
-    ) -> func.HttpResponse:
-        """HTTP trigger for E2E testing without a queue.
-
-        Accepts the same JSON message body as the queue trigger and starts the
-        pipeline orchestration directly.  Returns the Durable Functions instance
-        ID so the caller can poll for status.
-        """
-        try:
-            message = req.get_json()
-        except ValueError:
-            return func.HttpResponse(
-                json.dumps({"error": "Invalid JSON in request body"}),
-                status_code=400,
-                mimetype="application/json",
-            )
-
-        request_type = message.get("requestType", "")
-        message_id = message.get("messageId", "")
-
-        if not request_type:
-            return func.HttpResponse(
-                json.dumps({"error": "Missing required field: requestType"}),
-                status_code=400,
-                mimetype="application/json",
-            )
-
-        logger.info(
-            "HTTP test trigger  requestType=%s  messageId=%s",
-            request_type, message_id,
-        )
-
-        instance_id = await df_client.start_new(
-            orchestration_function_name="pipeline_orchestrator",
-            instance_id=None,
-            client_input=message,
-        )
-
-        # Return a status-query payload so the caller can poll for completion
-        status_uri = df_client.create_http_management_payload(instance_id)
-
-        return func.HttpResponse(
-            json.dumps({"instanceId": instance_id, "statusQueryGetUri": status_uri.get("statusQueryGetUri", "")}),
-            status_code=202,
-            mimetype="application/json",
-        )
-
-    return bp
